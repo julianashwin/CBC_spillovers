@@ -53,12 +53,28 @@ ggsave(paste0(export_dir, "meeting_pub_date.png"))
 
 
 # Start with the first observation
-meeting.df$influenced_by <- ""
+meeting.df$last_fed <- ""
+meeting.df$fed_published <- 0
+meeting.df$last_boe <- ""
+meeting.df$boe_published <- 0
+meeting.df$last_ecb <- ""
+meeting.df$ecb_published <- 0
 
+# Want meetings which are at most 100 days ago
 for (i in 1:nrow(meeting.df)){
   meeting_date <- meeting.df$meet_date[i] 
+  last_fed <- meeting.df[which( (meeting.df$central_bank == "Federal Reserve") &
+                                  (difftime(meeting_date, meeting.df$meet_date, units = "days") > 0) &
+                                 (difftime(meeting_date, meeting.df$meet_date, units = "days") < 100)),]
+  last_fed <- last_fed[rev(order(last_fed$meet_date)),]
+  last_fed <- last_fed$meeting_id[1]
+  
+  meeting.df$last_fed <- last_fed
+  
+  
+  
   influenced_by <- meeting.df[which((difftime(meeting_date, meeting.df$pub_date, units = "days") > 0) &
-                     (difftime(meeting_date, meeting.df$pub_date, units = "days") < 62)), "meeting_id"]
+                                      (difftime(meeting_date, meeting.df$pub_date, units = "days") < 62)), "meeting_id"]
   meeting.df$influenced_by[i] <- paste0(paste(influenced_by, collapse = "; "), ";")
 }
 
@@ -77,7 +93,7 @@ var_used <- "y"
 k <- 30
 variablenames <- paste0(var_used, 1:k)
 data_short <- meeting.df[,c("meeting_id", "central_bank", "pub_date", "meet_date", 
-                               "influenced_by", variablenames)]
+                            "influenced_by", variablenames)]
 data_short$meeting_id_str <- paste0(data_short$meeting_id, ";")
 
 # convert to long from for topic-meeting combinations
@@ -115,7 +131,7 @@ for (i in 1:nrow(meeting_long)){
   
   # Fed average
   fed.df <- meeting_long[which(str_detect(meeting_long$meeting_id_str, fed_influencers) & 
-                                  meeting_long$topic == temp.topic),]
+                                 meeting_long$topic == temp.topic),]
   if (temp.row$fed_N > 0){
     temp.row$fed_preaverage <- mean(fed.df$var_value)
   } else if (temp.row$fed_N == 0){
@@ -124,7 +140,7 @@ for (i in 1:nrow(meeting_long)){
   
   # Bank average
   bank.df <- meeting_long[which(str_detect(meeting_long$meeting_id_str, bank_influencers) & 
-                                 meeting_long$topic == temp.topic),]
+                                  meeting_long$topic == temp.topic),]
   if (temp.row$bank_N > 0){
     temp.row$bank_preaverage <- mean(bank.df$var_value)
   } else if (temp.row$bank_N == 0){
@@ -297,7 +313,7 @@ model3 <- felm(var_value ~ boe_on_fed + ecb_on_fed +
                  fed_var_1lag + fed_var_2lag + fed_var_3lag + fed_var_4lag + fed_var_5lag +
                  bank_var_1lag + bank_var_2lag + bank_var_3lag + bank_var_4lag + bank_var_5lag + 
                  ecb_var_1lag + ecb_var_2lag + ecb_var_3lag + ecb_var_4lag + ecb_var_5lag 
-                 | quarters + centralbank_topic, data = meeting_long) 
+               | quarters + centralbank_topic, data = meeting_long) 
 summary(model3)
 
 
@@ -455,7 +471,7 @@ ggsave(paste0(export_dir, "Macro_series/EZ_policy_rate_ZLB.png"))
 
 
 
-  
+
 
 
 
@@ -466,31 +482,65 @@ for (i in 1:topicnumber){
   temp.df <- meeting_long[which(meeting_long$topic == topicname),]
   #temp.df <- pdata.frame(temp.df, index = c("centralbank_topic", "meeting_no"))
   model <- felm(var_value ~ boe_on_fed + ecb_on_fed +
-                            fed_on_boe  + ecb_on_boe +
-                            fed_on_ecb + boe_on_ecb  +
-                            fed_var_1lag + bank_var_1lag + ecb_var_1lag, data = temp.df) 
-    felm(var_value ~ ecb_preaverage+ fed_preaverage+ bank_preaverage| centralbank_topic, data = temp.df)
+                  fed_on_boe  + ecb_on_boe +
+                  fed_on_ecb + boe_on_ecb  +
+                  fed_var_1lag + bank_var_1lag + ecb_var_1lag, data = temp.df) 
+  felm(var_value ~ ecb_preaverage+ fed_preaverage+ bank_preaverage| centralbank_topic, data = temp.df)
   print(summary(model))
 }
 
 
 
 # Check if the result is different across the time period of the sample
+meeting_controls$difftime <- as.numeric(difftime(meeting_controls$pub_date, meeting_controls$meet_date, units = "days"))
+
+meeting_controls$publish_dummy <- as.numeric(meeting_controls$difftime < 25)
+
 meeting_long$meet_date <- as.Date(meeting_long$meet_date)
 
-meeting_early <- meeting_long[which(meeting_long$meet_date < "2006-01-01"),]
-meeting_late <- meeting_long[which(meeting_long$meet_date >= "2006-01-01"),]
+meeting_early <- meeting_long[which(meeting_long$meet_date < "2005-01-01"),]
+meeting_late <- meeting_long[which(meeting_long$meet_date >= "2005-01-01"),]
+meeting_long$publish_dummy <- as.numeric(meeting_long$meet_date >= "2005-01-01")
 
-model3 <- felm(var_value ~ ecb_preaverage + fed_preaverage + bank_preaverage + 
-                 plm::lag(var_value, 1:12)| quarters + centralbank_topic, 
-               data = meeting_early) 
+model1 <- felm(var_value ~ boe_on_fed + ecb_on_fed +
+                 fed_on_boe  + ecb_on_boe +
+                 fed_on_ecb + boe_on_ecb  + 
+                 publish_dummy*boe_on_fed + publish_dummy*ecb_on_fed +
+                 publish_dummy*fed_on_boe + publish_dummy*ecb_on_boe +
+                 publish_dummy*fed_on_ecb + publish_dummy*boe_on_ecb| centralbank_topic, data = meeting_long) 
+summary(model1)
+
+model2 <- felm(var_value ~  boe_on_fed + ecb_on_fed +
+                 fed_on_boe  + ecb_on_boe +
+                 fed_on_ecb + boe_on_ecb + 
+                 publish_dummy*boe_on_fed + publish_dummy*ecb_on_fed +
+                 publish_dummy*fed_on_boe + publish_dummy*ecb_on_boe +
+                 publish_dummy*fed_on_ecb + publish_dummy*boe_on_ecb +
+                 fed_var_1lag + bank_var_1lag + ecb_var_1lag| centralbank_topic, data = meeting_long) 
+summary(model2)
+
+model3 <- felm(var_value ~ boe_on_fed + ecb_on_fed +
+                 fed_on_boe  + ecb_on_boe +
+                 fed_on_ecb + boe_on_ecb  + 
+                 publish_dummy*boe_on_fed + publish_dummy*ecb_on_fed +
+                 publish_dummy*fed_on_boe + publish_dummy*ecb_on_boe +
+                 publish_dummy*fed_on_ecb + publish_dummy*boe_on_ecb +
+                 fed_var_1lag + fed_var_2lag + fed_var_3lag + fed_var_4lag + fed_var_5lag +
+                 bank_var_1lag + bank_var_2lag + bank_var_3lag + bank_var_4lag + bank_var_5lag + 
+                 ecb_var_1lag + ecb_var_2lag + ecb_var_3lag + ecb_var_4lag + ecb_var_5lag 
+               | centralbank_topic, data = meeting_long) 
 summary(model3)
 
-model3 <- felm(var_value ~ ecb_preaverage + fed_preaverage + bank_preaverage + 
-                 plm::lag(var_value, 1:12)| quarters + centralbank_topic, 
-               data = meeting_late) 
+model4 <- felm(var_value ~ boe_on_fed + ecb_on_fed +
+                 fed_on_boe  + ecb_on_boe +
+                 fed_on_ecb + boe_on_ecb  + 
+                 fed_var_1lag + fed_var_2lag + fed_var_3lag + fed_var_4lag + fed_var_5lag +
+                 bank_var_1lag + bank_var_2lag + bank_var_3lag + bank_var_4lag + bank_var_5lag + 
+                 ecb_var_1lag + ecb_var_2lag + ecb_var_3lag + ecb_var_4lag + ecb_var_5lag 
+               | centralbank_topic, data = meeting_long) 
 summary(model3)
 
+stargazer(model3, model4)
 
 
 ############################# End ############################# 

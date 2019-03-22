@@ -501,6 +501,9 @@ summary(nchar(ecbstatements.df$paragraph))
 ecbstatements.df$nchar <- nchar(ecbstatements.df$paragraph)
 # The huge paragraph here is actually correct (https://www.ecb.europa.eu/press/pressconf/1998/html/is981222.en.html)
 
+# Remove the October 16th 2014 press conference as this was not a standard Governing Council meeting, but a "comprehensive assesment"
+ecbstatements.df <- ecbstatements.df[which(ecbstatements.df$meet_date != "2014-10-26"),]
+
 # Add unique paragraph identifier
 unique_id <- paste0("ecb_", 1:nrow(ecbstatements.df))
 ecbstatements.df$unique_id <- unique_id

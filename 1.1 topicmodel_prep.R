@@ -227,7 +227,6 @@ alldata.dtm <- DocumentTermMatrix(alldata.corpus, control = list(minsWordLength 
 print(paste("Dimensions of alldata.dtm are", dim(alldata.dtm)[1], "documents and", 
             dim(alldata.dtm)[2], "words in vocab"))
 alldata.vocab <- alldata.dtm$dimnames$Terms     
-alldata.dtm$dimnames$Docs <- alldata.df$unique_id
 
 
 ############################# Some summary stats ############################# 

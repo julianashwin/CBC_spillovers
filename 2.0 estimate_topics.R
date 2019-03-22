@@ -58,7 +58,7 @@ print(paste("After removing low tf-idf terms, the dimensions of paragraph.dtm ar
 
 k <- 30
 paragraph.lda <- LDA(paragraph.dtm, k = k, method = "Gibbs", 
-                      control = list(verbose = 100, burnin = 1000, thin = 100, iter = 10000))
+                      control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
 # paragraph.lda <- LDA(paragraph.dtm, k = k, control = list( verbose = 1))
 paragraph.lda
 

@@ -49,315 +49,427 @@ ecb.df <- meeting.df[which(meeting.df$central_bank == "European Central Bank"),]
 rownames(ecb.df) <- ecb.df$meeting_id
 
 
-# Import growth and inflation data for each economy
+### Import growth and inflation data for each economy
 
 
+### UK data
 
+# UK growth
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/UK_growth.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$quarter <- as.Date(import.df$DATE)
+import.df$growth <- import.df[,2]
+bank.df <- merge(bank.df, import.df[,c("quarter", "growth")], by = "quarter", all.x = TRUE)
+rownames(bank.df) <- bank.df$meeting_id
 
+# UK quarterly inflation 
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/UK_inflation_quarterly.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$quarter <- as.Date(import.df$DATE)
+import.df$inflation_quarterly <- import.df[,2]
+bank.df <- merge(bank.df, import.df[,c("quarter", "inflation_quarterly")], by = "quarter", all.x = TRUE)
+rownames(bank.df) <- bank.df$meeting_id
 
-
-############################# Principal Components analysis
-
-bank.quartave <- aggregate(bank.df[,c(variablenames)], list(bank.df$quarter), mean)
-colnames(bank.quartave) <- c("quarter", paste0(variablenames, "q"))
-rownames(bank.quartave) <- bank.quartave$quarter
-bank.monthave <- aggregate(bank.df[,c(variablenames)], list(bank.df$month), mean)
-colnames(bank.monthave) <- c("month", paste0(variablenames, "m"))
-
-bank.df <- merge(bank.df, bank.quartave, by = "quarter", all.x = TRUE)
-bank.df <- merge(bank.df, bank.monthave, by = "month", all.x = TRUE)
-
-### Import relevant macro data
-ukmacro.df <- read.csv(paste0(clean_dir, "UK_macro/UK_macro_data.csv"), encoding = "utf-8", stringsAsFactors = FALSE)
-ukmacro.df$Date <- as.Date(ukmacro.df$Date)
-ukmacro.df <- ukmacro.df[which(ukmacro.df$Date >= "1997-01-01"),]
-ukmacro.df <- ukmacro.df[which(ukmacro.df$Date < "2016-01-01"),]
-ukmacro.df$quarter <- floor_date(ukmacro.df$Date, "quarter")
-ggplot() + 
-  geom_line(data = ukmacro.df, aes(x = Date, y = Leading_ind - 100, color = "Leading indicator")) + 
-  geom_line(data = ukmacro.df, aes(x = Date, y = Inflation_CPI, color = "Inflation"))
-  
-
-bank.df <- merge(bank.df, ukmacro.df, by = "quarter", all.x = TRUE)
+# UK monthly inflation 
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/UK_inflation_monthly.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$month <- as.Date(import.df$DATE)
+import.df$inflation_monthly <- import.df[,2]
+bank.df <- merge(bank.df, import.df[,c("month", "inflation_monthly")], by = "month", all.x = TRUE)
 rownames(bank.df) <- bank.df$meeting_id
 
 
-### Compute principle components of the attention measures
-topicnumber <- 30
-var_used <- "y"
-variablenames <- paste0(var_used, 1:topicnumber)
+### US data
 
+# US growth
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/US_growth.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$quarter <- as.Date(import.df$DATE)
+import.df$growth <- import.df[,2]
+fed.df <- merge(fed.df, import.df[,c("quarter", "growth")], by = "quarter", all.x = TRUE)
+rownames(fed.df) <- fed.df$meeting_id
+
+# US quarterly inflation 
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/US_inflation_quarterly.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$quarter <- as.Date(import.df$DATE)
+import.df$inflation_quarterly <- import.df[,2]
+fed.df <- merge(fed.df, import.df[,c("quarter", "inflation_quarterly")], by = "quarter", all.x = TRUE)
+rownames(fed.df) <- fed.df$meeting_id
+
+# US monthly inflation 
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/US_inflation_monthly.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$month <- as.Date(import.df$DATE)
+import.df$inflation_monthly <- import.df[,2]
+fed.df <- merge(fed.df, import.df[,c("month", "inflation_monthly")], by = "month", all.x = TRUE)
+rownames(fed.df) <- fed.df$meeting_id
+
+
+### EZ data
+
+# EZ growth
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/EZ_growth.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$quarter <- as.Date(import.df$DATE)
+import.df$growth <- import.df[,2]
+ecb.df <- merge(ecb.df, import.df[,c("quarter", "growth")], by = "quarter", all.x = TRUE)
+rownames(ecb.df) <- ecb.df$meeting_id
+
+# EZ quarterly inflation (should be fine to use the monthly here as it's growth from same period, previous year)
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/EZ_inflation_monthly.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$quarter <- as.Date(import.df$DATE)
+import.df$inflation_quarterly <- import.df[,2]
+ecb.df <- merge(ecb.df, import.df[,c("quarter", "inflation_quarterly")], by = "quarter", all.x = TRUE)
+rownames(ecb.df) <- ecb.df$meeting_id
+
+# EZ monthly inflation 
+import_filename <- paste(raw_dir, "Macro_data/FRED_downloads/EZ_inflation_monthly.csv", sep = "")
+import.df <- read.csv(import_filename)
+import.df$month <- as.Date(import.df$DATE)
+import.df$inflation_monthly <- import.df[,2]
+ecb.df <- merge(ecb.df, import.df[,c("month", "inflation_monthly")], by = "month", all.x = TRUE)
+rownames(ecb.df) <- ecb.df$meeting_id
+
+
+
+### Import policy rates for each bank from BIS database
+# EZ policy rate 
+import_filename <- paste(raw_dir, "Macro_data/BIS_website/cbpol_1902.xlsx", sep = "")
+import.df <- read_xlsx(import_filename, sheet = "Monthly Series", skip = 3)
+import.df <- as.data.frame(import.df)
+import.df$Period <- as.Date(import.df$Period)
+import.df$month <- floor_date(import.df$Period, "month")
+import.df$fed_policy_rate <- import.df[,"M:US"]
+import.df$bank_policy_rate <- import.df[,"M:GB"]
+import.df$ecb_policy_rate <- import.df[,"M:XM"]
+
+import.df <- import.df[,c("month", "fed_policy_rate", "bank_policy_rate", "ecb_policy_rate")]
+
+fed.df <- merge(fed.df, import.df[,c("month", "fed_policy_rate")], by = "month", all.x = TRUE)
+rownames(fed.df) <- fed.df$meeting_id
+fed.df$policy_rate <- fed.df$fed_policy_rate
+cor.test(fed.df$policy_rate, fed.df$fed_policy_rate)
+
+bank.df <- merge(bank.df, import.df[,c("month", "bank_policy_rate")], by = "month", all.x = TRUE)
+rownames(bank.df) <- bank.df$meeting_id
+bank.df$policy_rate <- bank.df$bank_policy_rate
+cor.test(bank.df$policy_rate, bank.df$bank_policy_rate)
+
+ecb.df <- merge(ecb.df, import.df[,c("month", "ecb_policy_rate")], by = "month", all.x = TRUE)
+rownames(ecb.df) <- ecb.df$meeting_id
+ecb.df$policy_rate <- ecb.df$ecb_policy_rate
+cor.test(ecb.df$policy_rate, ecb.df$ecb_policy_rate)
+
+
+
+# Plot each of the series as a sense check
+ggplot() + 
+  scale_color_manual("",
+                     values = c("UK growth" = "black", "US growth" = "blue3", "EZ growth" = "darkgoldenrod2")) +
+  geom_line(data = bank.df, aes(x = quarter, y = growth, color = "UK growth")) +
+  geom_line(data = fed.df, aes(x = quarter, y = growth, color = "US growth")) +
+  geom_line(data = ecb.df, aes(x= quarter, y = growth, color = "EZ growth")) +
+  xlab('Date') +
+  ylab("GDP growth (same period, previous year")
+  #ggtitle("GDP growth")
+ggsave(paste0(export_dir, "Macro_series/Growth_rates.png"))
+
+ggplot() + 
+  scale_color_manual("", values = c("UK inflation (monthly)" = "black", "US inflation (monthly)" = "blue3", "EZ inflation (monthly)" = "darkgoldenrod2",
+                                "UK inflation (quarterly)" = "black", "US inflation (quarterly)" = "blue3", "EZ inflation (quarterly)" = "darkgoldenrod2")) +
+  scale_linetype_manual("",values=c("UK inflation (monthly)" = 1, "US inflation (monthly)" = 1, "EZ inflation (monthly)" = 1,
+                                             "UK inflation (quarterly)" = 2, "US inflation (quarterly)" = 2, "EZ inflation (quarterly)" = 2)) +
+  geom_line(data = bank.df, aes(x = month, y = inflation_monthly, color = "UK inflation (monthly)",linetype = "UK inflation (monthly)")) +
+  geom_line(data = bank.df, aes(x = quarter, y = inflation_quarterly, color = "UK inflation (quarterly)", linetype = "UK inflation (quarterly)")) +
+  geom_line(data = fed.df, aes(x = month, y = inflation_monthly, color = "US inflation (monthly)", linetype = "US inflation (monthly)")) +
+  geom_line(data = fed.df, aes(x = quarter, y = inflation_quarterly, color = "US inflation (quarterly)", linetype = "US inflation (quarterly)")) +
+  geom_line(data = ecb.df, aes(x = month, y = inflation_monthly, color = "EZ inflation (monthly)", linetype = "EZ inflation (monthly)")) +
+  geom_line(data = ecb.df, aes(x = quarter, y = inflation_quarterly, color = "EZ inflation (quarterly)", linetype = "EZ inflation (quarterly)")) +
+  xlab('Date') +
+  ylab("CPI inflation (same period, previous year")
+#ggtitle("GDP growth")
+ggsave(paste0(export_dir, "Macro_series/Inflation_rates.png"))
+
+ggplot() + 
+  scale_color_manual("",
+                     values = c("UK policy rate" = "black", "US policy rate" = "blue3", "EZ policy rate" = "darkgoldenrod2")) +
+  geom_line(data = bank.df, aes(x = month, y = policy_rate, color = "UK policy rate")) +
+  geom_line(data = fed.df, aes(x = month, y = policy_rate, color = "US policy rate")) +
+  geom_line(data = ecb.df, aes(x= month, y = policy_rate, color = "EZ policy rate")) +
+  xlab('Date') +
+  ylab("Policy rate (percent, from BIS)")
+#ggtitle("GDP growth")
+ggsave(paste0(export_dir, "Macro_series/Policy_rates.png"))
+
+
+
+
+############################# Principal Components analysis ############################# 
+
+
+### UK
+
+# Principal components of each meeting's topic attention variables
 bank.pca <- prcomp(bank.df[,variablenames], center = TRUE, scale. = TRUE)
 summary(bank.pca)
 bank.pca.df <- as.data.frame(bank.pca$x)
 bank.pca.df$meeting_id <- rownames(bank.pca.df)
+bank.df <- merge(bank.df, bank.pca.df, by = "meeting_id") # no all.x bc dimensions should be identical
+rownames(bank.df) <- bank.df$meeting_id
 
+# Aggregate the topic variables to quarterly
+bank.quartave <- aggregate(bank.df[,c(variablenames)], list(bank.df$quarter), mean)
+colnames(bank.quartave) <- c("quarter", paste0(variablenames, "q"))
+rownames(bank.quartave) <- bank.quartave$quarter
+
+# Calculate principal components of the monthly averages
 bank.pca.quart <- prcomp(bank.quartave[,paste0(var_used, 1:topicnumber, "q")], center = TRUE, scale. = TRUE)
 summary(bank.pca.quart)
 bank.pca.quart.df <- as.data.frame(bank.pca.quart$x)
-bank.pca.quart.df$quarter <- as.Date(rownames(bank.quartave))
+colnames(bank.pca.quart.df) <- paste0(colnames(bank.pca.quart.df), "q")
+bank.pca.quart.df$quarter <- as.Date(rownames(bank.pca.quart.df))
+bank.df <- merge(bank.df, bank.pca.quart.df, by = "quarter", all.x = TRUE)
+rownames(bank.df) <- bank.df$meeting_id
 
 
-bank.df <- merge(bank.df, bank.pca.df, by = "meeting_id") # no all.x bc dimensions should be identical
+### US
 
-ggplot() + 
-  scale_color_manual("Central Bank",
-    values = c("BoE" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "Inflation" = "red")) +
-  geom_line(data = bank.df, aes(x = meet_date, y = -PC1, color = "BoE")) +
-  #geom_line(data = bank.df, aes(x = meet_date, y = PC2+ PC1, color = "BoE")) +
-  geom_line(data = bank.df, aes(x= Date, y = Inflation_CPI, color = "Inflation")) +
-         xlab('Meeting date') +
-         ylab(expression(theta[bt])) + 
-         ggtitle("Topic 2 over time")
-
-
-
-ggplot() + 
-  scale_color_manual("",
-                     values = c("BoE PC1" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "UK Inflation" = "red")) +
-  geom_line(data = bank.df, aes(x = meet_date, y = PC1, color = "BoE PC1")) +
-  #geom_line(data = bank.df, aes(x = meet_date, y = -PC2- PC1, color = "BoE")) +
-  geom_line(data = ukmacro.df, aes(x= quarter, y = (-3*Inflation_CPI) + 5, color = "UK Inflation")) +
-  xlab('Meeting date') +
-  #ylab(expression(y[bt])) + 
-  scale_y_continuous("BoE PC1",sec.axis = sec_axis(~ (. /-3) +(5/3) , name = "UK Inflation")) +
-  ggtitle("First Principal Component of BoE minutes and Inflation (CPI)")
-ggsave(paste0(export_dir, "PCA/BoE_PC1_Inflation.png"))
-
-
-ggplot() + 
-  scale_color_manual("",
-                     values = c("BoE PC1" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "UK Inflation" = "red")) +
-  geom_line(data = bank.pca.quart.df, aes(x = quarter, y = PC1, color = "BoE PC1")) +
-  #geom_line(data = bank.df, aes(x = meet_date, y = -PC2- PC1, color = "BoE")) +
-  geom_line(data = ukmacro.df, aes(x= quarter, y = (3*Inflation_CPI) - 5, color = "UK Inflation")) +
-  xlab('Meeting date') +
-  #ylab(expression(y[bt])) + 
-  scale_y_continuous("BoE PC1",sec.axis = sec_axis(~ (. /-3) +(5/3) , name = "UK Inflation")) +
-  ggtitle("First Principal Component of BoE minutes and Inflation (CPI)")
-ggsave(paste0(export_dir, "PCA/BoE_PC1_Inflation_quarterly.png"))
-
-
-
-cor.test(-bank.df$PC1, bank.df$Inflation_CPI)
-bank.lm <- lm(Inflation_CPI ~ dplyr::lead(PC1, 0), data = bank.df)
-summary(bank.lm)
-bank.lm <- lm(Inflation_CPI ~ PC1 + PC2 + PC3, data = bank.df)
-summary(bank.lm)
-
-bank.df$inf_fitted_values <- bank.lm$fitted.values
-
-ggplot() + 
-  scale_color_manual("Central Bank",
-                     values = c("BoE PC1:PC3" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "UK Inflation" = "red")) +
-  geom_line(data = bank.df, aes(x = meet_date, y = inf_fitted_values, color = "BoE PC1:PC3")) +
-  geom_line(data = bank.df, aes(x= meet_date, y = Inflation_CPI, color = "UK Inflation")) +
-  ylab("BoE PC1:PC3") + 
-  ggtitle("UK inflation and first 3 Principal Components")
-ggsave(paste0(export_dir, "PCA/BoE_PC1to3_Inflation.png"))
-
-
-
-import_filename <- paste(raw_dir, "US_macro/FRED_downloads/NAEXKP01GBQ657S.csv", sep = "")
-import.df <- read.csv(import_filename)
-import.df$quarter <- as.Date(import.df$DATE)
-import.df$growth <- import.df$NAEXKP01GBQ657S
-
-bank.df <- merge(bank.df, import.df, by = "quarter", all.x = TRUE)
-bank.pca.quart.df <- merge(bank.pca.quart.df, import.df, by = "quarter", all.x = TRUE)
-
-bank.lm <- lm(growth ~ PC1, data = bank.pca.quart.df)
-summary(bank.lm)
-bank.lm <- lm(growth ~ PC1 + PC2 + PC3, data = bank.pca.quart.df)
-summary(bank.lm)
-
-bank.lm <- lm(growth ~ PC1, data = bank.df)
-summary(bank.lm)
-bank.lm <- lm(growth ~ PC1 + PC2 + PC3, data = bank.df)
-summary(bank.lm)
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Now try the same for the Federal Reserve
-
-
-fed.quartave <- aggregate(fed.df[,c(variablenames)], list(fed.df$quarter), mean)
-colnames(fed.quartave) <- c("quarter", paste0(variablenames, "q"))
-fed.monthave <- aggregate(fed.df[,c(variablenames)], list(fed.df$month), mean)
-colnames(fed.monthave) <- c("month", paste0(variablenames, "m"))
-
-fed.df <- merge(fed.df, fed.quartave, by = "quarter", all.x = TRUE)
-fed.df <- merge(fed.df, fed.monthave, by = "month", all.x = TRUE)
-
-### Import relevant macro data
-
-import_filename <- paste(clean_dir, "US_macro/Fernald_clean.csv", sep = "")
-usmacro.df <- read.csv(import_filename)
-usmacro.df$quarter <- as.Date(usmacro.df$quarter)
-
-usmacro.df <- usmacro.df[which(usmacro.df$quarter >= "1997-01-01"),]
-usmacro.df <- usmacro.df[which(usmacro.df$quarter < "2016-01-01"),]
-usmacro.df$quarter <- floor_date(usmacro.df$quarter, "quarter")
-
-ggplot() + 
-  geom_line(data = usmacro.df, aes(x = quarter, y = dhours, color = "Hours growth")) + 
-  geom_line(data = usmacro.df, aes(x = quarter, y = dY, color = "GDP growth"))
-
-
-fed.df <- merge(fed.df, usmacro.df, by = "quarter", all.x = TRUE)
-rownames(fed.df) <- fed.df$meeting_id
-
-### Compute principle components of the attention measures
-topicnumber <- 30
-var_used <- "y"
-variablenames <- paste0(var_used, 1:topicnumber)
-
+# Principal components of each meeting's topic attention variables
 fed.pca <- prcomp(fed.df[,variablenames], center = TRUE, scale. = TRUE)
-summary(bank.pca)
+summary(fed.pca)
 fed.pca.df <- as.data.frame(fed.pca$x)
 fed.pca.df$meeting_id <- rownames(fed.pca.df)
+fed.df <- merge(fed.df, fed.pca.df, by = "meeting_id")
+rownames(fed.df) <- fed.df$meeting_id
 
-fed.df <- merge(fed.df, fed.pca.df, by = "meeting_id") # no all.x bc dimensions should be identical
+# Aggregate the topic variables to quarterly
+fed.quartave <- aggregate(fed.df[,c(variablenames)], list(fed.df$quarter), mean)
+colnames(fed.quartave) <- c("quarter", paste0(variablenames, "q"))
+rownames(fed.quartave) <- fed.quartave$quarter
 
-# Import US inflation data
-import_filename <- paste(raw_dir, "US_macro/FRED_downloads/CPGRLE01USQ659N.csv", sep = "")
-usinflation.df <- read.csv(import_filename)
-usinflation.df$quarter <- as.Date(usinflation.df$DATE)
-usinflation.df$inflation <- usinflation.df$CPGRLE01USQ659N
-fed.df <- merge(fed.df, usinflation.df, by = "quarter", all.x = TRUE)
+merged <- merge(fed.df, fed.quartave, by = "quarter", all.x = TRUE)
+cor.test(merged$y1, merged$y1q)
+cor.test(merged$y10, merged$y10q)
 
-
-
-ggplot() + 
-  scale_color_manual("Central Bank",
-                     values = c("BoE" = "black", "Fed PC1:PC2" = "blue3", "ECB" = "darkgoldenrod2", "US Inflation" = "red")) +
-  geom_line(data = fed.df, aes(x = meet_date, y =-PC1 -PC2, color = "Fed PC1:PC2")) +
-  #geom_line(data = bank.df, aes(x = meet_date, y = PC2+ PC1, color = "BoE")) +
-  geom_line(data = fed.df, aes(x= quarter, y = (inflation), color = "US Inflation")) +
-  xlab('Meeting date') +
-  ylab("Fed PC1:PC2") + 
-  ggtitle("US inflation and first 2 Principal Components")
-ggsave(paste0(export_dir, "PCA/Fed_PC1toPC1_Inflation.png"))
+# Calculate principal components of the monthly averages
+fed.pca.quart <- prcomp(fed.quartave[,paste0(var_used, 1:topicnumber, "q")], center = TRUE, scale. = TRUE)
+summary(fed.pca.quart)
+fed.pca.quart.df <- as.data.frame(fed.pca.quart$x)
+colnames(fed.pca.quart.df) <- paste0(colnames(fed.pca.quart.df), "q")
+fed.pca.quart.df$quarter <- as.Date(rownames(fed.pca.quart.df))
+fed.df <- merge(fed.df, fed.pca.quart.df, by = "quarter", all.x = TRUE)
+rownames(fed.df) <- fed.df$meeting_id
 
 
+### EZ
 
-cor.test((fed.df$PC1+fed.df$PC2), fed.df$inflation)
-
-ggplot() + 
-  scale_color_manual("Central Bank",
-                     values = c("BoE" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "GDP growth" = "red")) +
-  geom_line(data = fed.df, aes(x = meet_date, y = -PC1-PC2-PC3, color = "Fed")) +
-  #geom_line(data = bank.df, aes(x = meet_date, y = -PC2- PC1, color = "BoE")) +
-  geom_line(data = fed.df, aes(x= quarter, y = dY, color = "GDP growth")) +
-  xlab('Meeting date') +
-  ylab(expression(theta[bt])) + 
-  ggtitle("Topic 2 over time")
-
-cor.test(-fed.df$PC1, fed.df$dY)
-fed.lm <- lm(dY ~ PC1, data = fed.df)
-summary(fed.lm)
-fed.lm <- lm(du_consumption ~ PC1 + PC2 + PC3, data = fed.df)
-summary(fed.lm)
-
-fed.df$Y_fitted_values <- fed.lm$fitted.values
-
-ggplot() + 
-  scale_color_manual("Central Bank",
-                     values = c("BoE" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "GDP growth" = "red")) +
-  geom_line(data = fed.df, aes(x = meet_date, y = Y_fitted_values, color = "Fed")) +
-  geom_line(data = fed.df, aes(x= meet_date, y = dY, color = "GDP growth")) +
-  xlab('Meeting date') +
-  ylab(expression(theta[bt])) + 
-  ggtitle("US growth and first 3 Principal Components")
-
-cor.test(-fed.df$PC1, fed.df$inflation)
-fed.lm <- lm(inflation ~ PC1, data = fed.df)
-summary(fed.lm)
-fed.lm <- lm(inflation ~ PC1 + PC2 + PC3, data = fed.df)
-summary(fed.lm)
-
-fed.df$inf_fitted_values <- fed.lm$fitted.values
-
-ggplot() + 
-  scale_color_manual("Central Bank",
-                     values = c("BoE" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "GDP growth" = "red")) +
-  geom_line(data = fed.df, aes(x = meet_date, y = inf_fitted_values, color = "Fed")) +
-  geom_line(data = fed.df, aes(x= meet_date, y = inflation, color = "GDP growth")) +
-  xlab('Meeting date') +
-  ylab(expression(theta[bt])) + 
-  ggtitle("US inflation and first 3 Principal Components")
-
-
-
-
-### Now try the same for the ECB
-
-# Import EZ macro data
-import_filename <- paste(raw_dir, "US_macro/FRED_downloads/EA19CPHPLA01GYM.csv", sep = "")
-ezinflation.df <- read.csv(import_filename)
-ezinflation.df$quarter <- as.Date(ezinflation.df$DATE)
-ezinflation.df$inflation <- ezinflation.df$EA19CPHPLA01GYM
-ecb.df <- merge(ecb.df, ezinflation.df, by = "quarter", all.x = TRUE)
-
-rownames(ecb.df) <- ecb.df$meeting_id
-
-
-ggplot() + 
-  geom_line(data = ecb.df, aes(x = quarter, y = inflation, color = "Inflation"))
-
-
-
-### Compute principle components of the attention measures
-topicnumber <- 30
-var_used <- "y"
-variablenames <- paste0(var_used, 1:topicnumber)
-
+# Principal components of each meeting's topic attention variables
 ecb.pca <- prcomp(ecb.df[,variablenames], center = TRUE, scale. = TRUE)
 summary(ecb.pca)
 ecb.pca.df <- as.data.frame(ecb.pca$x)
 ecb.pca.df$meeting_id <- rownames(ecb.pca.df)
-
-ecb.df <- merge(ecb.df, ecb.pca.df, by = "meeting_id") # no all.x bc dimensions should be identical
-
+ecb.df <- merge(ecb.df, ecb.pca.df, by = "meeting_id")
 rownames(ecb.df) <- ecb.df$meeting_id
 
+# Aggregate the topic variables to quarterly
+ecb.quartave <- aggregate(ecb.df[,c(variablenames)], list(ecb.df$quarter), mean)
+colnames(ecb.quartave) <- c("quarter", paste0(variablenames, "q"))
+rownames(ecb.quartave) <- ecb.quartave$quarter
+
+# Calculate principal components of the monthly averages
+ecb.pca.quart <- prcomp(ecb.quartave[,paste0(var_used, 1:topicnumber, "q")], center = TRUE, scale. = TRUE)
+summary(ecb.pca.quart)
+ecb.pca.quart.df <- as.data.frame(ecb.pca.quart$x)
+colnames(ecb.pca.quart.df) <- paste0(colnames(ecb.pca.quart.df), "q")
+ecb.pca.quart.df$quarter <- as.Date(rownames(ecb.pca.quart.df))
+ecb.df <- merge(ecb.df, ecb.pca.quart.df, by = "quarter", all.x = TRUE)
+rownames(ecb.df) <- ecb.df$meeting_id
+
+
+### Reorder before analysing
+bank.df <- bank.df[order(bank.df$meet_date),]
+fed.df <- fed.df[order(fed.df$meet_date),]
+ecb.df <- ecb.df[order(ecb.df$meet_date),]
+
+
+### Plot the PCs
+
 ggplot() + 
-  scale_color_manual("Central Bank",
-                     values = c("BoE" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "Inflation" = "red")) +
-  geom_line(data = ecb.df, aes(x = meet_date, y = PC2, color = "ECB")) +
-  #geom_line(data = bank.df, aes(x = meet_date, y = PC2+ PC1, color = "BoE")) +
-  geom_line(data = ecb.df, aes(x= quarter, y = (inflation), color = "Inflation")) +
-  xlab('Meeting date') +
-  ylab(expression(theta[bt])) + 
-  ggtitle("Topic 2 over time")
+  scale_color_manual("", values = c("BoE PC1" = "black", "Fed PC1" = "blue3", "ECB PC1" = "darkgoldenrod2",
+                                    "BoE PC1q" = "black", "Fed PC1q" = "blue3", "ECB PC1q" = "darkgoldenrod2")) +
+  scale_linetype_manual("",values=c("BoE PC1" = 1, "Fed PC1" = 1, "ECB PC1" = 1,
+                                    "BoE PC1q" = 2, "Fed PC1q" = 2, "ECB PC1q" = 2)) +
+  geom_line(data = bank.df, aes(x = meet_date, y = PC1, color = "BoE PC1",linetype = "BoE PC1")) +
+  geom_line(data = fed.df, aes(x = meet_date, y = PC1, color = "Fed PC1", linetype = "Fed PC1")) +
+  geom_line(data = ecb.df, aes(x = meet_date, y = PC1, color = "ECB PC1", linetype = "ECB PC1")) +
+  geom_line(data = bank.df, aes(x = quarter, y = PC1q, color = "BoE PC1q",linetype = "BoE PC1q")) +
+  geom_line(data = fed.df, aes(x = quarter, y = -PC1q, color = "Fed PC1q",linetype = "Fed PC1q")) +
+  geom_line(data = ecb.df, aes(x = quarter, y = PC1q, color = "ECB PC1q",linetype = "ECB PC1q")) +
+  xlab('Date') +
+  ylab("First Principal Component")
+#ggtitle("GDP growth")
+ggsave(paste0(export_dir, "PCA/PC1_acrossbanks.png"))
 
-cor.test((ecb.df$PC2), ecb.df$inflation)
-ecb.lm <- lm(inflation ~ PC1, data = ecb.df)
-summary(ecb.lm)
-ecb.lm <- lm(inflation ~ PC1 + PC2 + PC3, data = ecb.df)
-summary(ecb.lm)
 
-ecb.df$inf_fitted_values <- ecb.lm$fitted.values
+### Are the principal components correlated
+all.data <- merge(ecb.pca.quart.df, fed.pca.quart.df, by = "quarter")
+all.data <- merge(all.data, bank.pca.quart.df, by = "quarter")
+
+cor.test(all.data$PC1q, all.data$PC1q.x)
+cor.test(all.data$PC1q, all.data$PC1q.y)
+cor.test(all.data$PC1q.x, all.data$PC1q.y)
+
+
+# A little experiment showing that uncorrelated autoregressive series might appear correlated
+shock1 <- rnorm(500, 0,1)
+shock2 <- rnorm(500, 0,1)
+cor.test(shock1,shock2)
+x <- rep(0,500)
+y <- rep(0, 500)
+for (i in 2:500){
+  x[i] <- 0.8*x[i-1] +shock1[i] 
+  y[i] <- 0.8*y[i-1] +shock2[i]
+}
+cor.test(x,y)
+
+
+
+############################# Compare PCs to macro series ############################# 
+
+
+### BoE text and UK data
+cor.test(bank.df$PC1, bank.df$inflation_monthly)
+cor.test(bank.df$PC1, bank.df$inflation_quarterly)
+cor.test(bank.df$PC1, bank.df$growth)
+cor.test(bank.df$PC2, bank.df$inflation_monthly)
+cor.test(bank.df$PC2, bank.df$inflation_quarterly)
+cor.test(bank.df$PC2, bank.df$growth)
+cor.test(bank.df$PC3, bank.df$inflation_monthly)
+cor.test(bank.df$PC3, bank.df$inflation_quarterly)
+cor.test(bank.df$PC3, bank.df$growth)
+
+bank.lm.inflationm_1 <- lm(inflation_monthly ~ PC1, data = bank.df)
+summary(bank.lm.inflationm_1)
+bank.lm.inflationm_123 <- lm(inflation_monthly ~ PC1 + PC2 + PC3, data = bank.df)
+summary(bank.lm.inflationm_123)
+bank.lm.inflationq_1 <- lm(inflation_quarterly ~ PC1, data = bank.df)
+summary(bank.lm.inflationq_1)
+bank.lm.inflationq_123 <- lm(inflation_quarterly ~ PC1 + PC2 + PC3, data = bank.df)
+summary(bank.lm.inflationq_123)
+bank.lm.growth_1 <- lm(growth ~ PC1, data = bank.df)
+summary(bank.lm.growth_1)
+bank.lm.growth_123 <- lm(growth ~ PC1 + PC2 + PC3, data = bank.df)
+summary(bank.lm.growth_123)
+
+stargazer(bank.lm.inflationm_1, bank.lm.inflationm_123, bank.lm.inflationq_1, bank.lm.inflationq_123,
+          bank.lm.growth_1, bank.lm.growth_123, title = "BoE attention Principal Components and Macro variables",
+          df = FALSE)
+
+
+### Fed text and US data
+cor.test(fed.df$PC1, fed.df$inflation_monthly)
+cor.test(fed.df$PC1, fed.df$inflation_quarterly)
+cor.test(fed.df$PC1, fed.df$growth)
+cor.test(fed.df$PC2, fed.df$inflation_monthly)
+cor.test(fed.df$PC2, fed.df$inflation_quarterly)
+cor.test(fed.df$PC2, fed.df$growth)
+cor.test(fed.df$PC3, fed.df$inflation_monthly)
+cor.test(fed.df$PC3, fed.df$inflation_quarterly)
+cor.test(fed.df$PC3, fed.df$growth)
+
+fed.lm.inflationm_1 <- lm(inflation_monthly ~ PC1, data = fed.df)
+summary(fed.lm.inflationm_1)
+fed.lm.inflationm_123 <- lm(inflation_monthly ~ PC1 + PC2, data = fed.df)
+summary(fed.lm.inflationm_123)
+fed.lm.inflationq_1 <- lm(inflation_quarterly ~ PC1, data = fed.df)
+summary(fed.lm.inflationq_1)
+fed.lm.inflationq_123 <- lm(inflation_quarterly ~ PC1 + PC2, data = fed.df)
+summary(fed.lm.inflationq_123)
+fed.lm.growth_1 <- lm(growth ~ PC1, data = fed.df)
+summary(fed.lm.growth_1)
+fed.lm.growth_123 <- lm(growth ~ PC1 + PC2, data = fed.df)
+summary(fed.lm.growth_123)
+
+stargazer(fed.lm.inflationm_1, fed.lm.inflationm_123, fed.lm.inflationq_1, fed.lm.inflationq_123,
+          fed.lm.growth_1, fed.lm.growth_123, title = "Frd attention Principal Components and Macro variables",
+          df = FALSE)
+
+
+### ECB text and EZ data
+cor.test(ecb.df$PC1, ecb.df$inflation_monthly)
+cor.test(ecb.df$PC1, ecb.df$inflation_quarterly)
+cor.test(ecb.df$PC1, ecb.df$growth)
+cor.test(ecb.df$PC2, ecb.df$inflation_monthly)
+cor.test(ecb.df$PC2, ecb.df$inflation_quarterly)
+cor.test(ecb.df$PC2, ecb.df$growth)
+cor.test(ecb.df$PC3, ecb.df$inflation_monthly)
+cor.test(ecb.df$PC3, ecb.df$inflation_quarterly)
+cor.test(ecb.df$PC3, ecb.df$growth)
+
+ecb.lm.inflationm_1 <- lm(inflation_monthly ~ PC1, data = ecb.df)
+summary(ecb.lm.inflationm_1)
+ecb.lm.inflationm_123 <- lm(inflation_monthly ~ PC1 + PC2 + PC3, data = ecb.df)
+summary(ecb.lm.inflationm_123)
+ecb.lm.inflationq_1 <- lm(inflation_quarterly ~ PC1, data = ecb.df)
+summary(ecb.lm.inflationq_1)
+ecb.lm.inflationq_123 <- lm(inflation_quarterly ~ PC1 + PC2 + PC3, data = ecb.df)
+summary(ecb.lm.inflationq_123)
+ecb.lm.growth_1 <- lm(growth ~ PC1, data = ecb.df)
+summary(ecb.lm.growth_1)
+ecb.lm.growth_123 <- lm(growth ~ PC1 + PC2 + PC3, data = ecb.df)
+summary(ecb.lm.growth_123)
+
+stargazer(ecb.lm.inflationm_1, ecb.lm.inflationm_123, ecb.lm.inflationq_1, ecb.lm.inflationq_123,
+          ecb.lm.growth_1, ecb.lm.growth_123, title = "ECB attention Principal Components and Macro variables",
+          df = FALSE, table.placement = "H")
+
+
+
+bank.info <- bank.df[,c("quarter", "month", "meeting_id", "central_bank", "growth", "inflation_quarterly", 
+                        "inflation_monthly", "policy_rate", "PC1", "PC1q")]
+fed.info <- fed.df[,c("quarter", "month", "meeting_id", "central_bank", "growth", "inflation_quarterly", 
+                      "inflation_monthly", "policy_rate", "PC1", "PC1q")]
+ecb.info <- ecb.df[,c("quarter", "month", "meeting_id", "central_bank", "growth", "inflation_quarterly", 
+                      "inflation_monthly", "policy_rate", "PC1", "PC1q")]
+
+all.info <- rbind(bank.info, fed.info, ecb.info)
+
+### Write the df with macro data to file
+write.csv(all.info, file = paste0(clean_dir, "CBC/meeting_details.csv"), 
+          fileEncoding = "utf-8", row.names = FALSE)
+#all.info <- read.csv(paste0(clean_dir, "CBC/meeting_details.csv"), encoding = "utf-8", stringsAsFactors = FALSE)
+
+
+
+
+############################# Plot some examples ############################# 
+
+inf.mean <- mean(bank.df$inflation_monthly)
+inf.var <- sd(bank.df$inflation_monthly)
+PC1.mean <- mean(bank.df$PC1)
+PC1.var <- sd(bank.df$PC1)
 
 ggplot() + 
-  scale_color_manual("Central Bank",
-                     values = c("BoE" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "GDP growth" = "red")) +
-  geom_line(data = ecb.df, aes(x = meet_date, y = inf_fitted_values, color = "ECB")) +
-  geom_line(data = ecb.df, aes(x= meet_date, y = inflation, color = "GDP growth")) +
+  scale_color_manual("",
+                     values = c("BoE PC1" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "UK Inflation" = "red")) +
+  geom_line(data = bank.df, aes(x = meet_date, y = (PC1 - PC1.mean)/PC1.var, color = "BoE PC1")) +
+  #geom_line(data = bank.df, aes(x = meet_date, y = -PC2- PC1, color = "BoE")) +
+  geom_line(data = bank.df, aes(x= meet_date, y = (inflation_monthly - inf.mean)/inf.var, color = "UK Inflation")) +
   xlab('Meeting date') +
-  ylab(expression(theta[bt])) + 
-  ggtitle("ECB inflation and first 3 Principal Components")
+  ylab("Normalised value") + 
+  #scale_y_continuous("BoE PC1",sec.axis = sec_axis(~ (. /inf.var) + (inf.mean/inf.var) , name = "UK Inflation (monthly)")) +
+  ggtitle("First Principal Component of BoE minutes and Inflation (CPI)")
+ggsave(paste0(export_dir, "PCA/BoE_PC1_Inflation.png"))
 
 
 
 
+
+
+
+
+
+
+############################# End  ############################# 
