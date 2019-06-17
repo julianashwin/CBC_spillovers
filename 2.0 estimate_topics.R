@@ -20,6 +20,33 @@ export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 ### Import the Federal Reserve data
 paragraph.df <- read.csv(paste0(clean_dir, "CBC/allbanksdata_clean.csv"), encoding = "utf-8", stringsAsFactors = FALSE)
 
+paragraph.df$ind <- 1
+
+paragraph_quarterly <- paragraph.df %>%
+  select(meet_date, central_bank, ind) %>%
+  group_by(meet_date, central_bank) %>% 
+  summarise_each(funs(sum(., na.rm = TRUE)))
+paragraph_quarterly$meet_date <- as.Date(paragraph_quarterly$meet_date)
+
+
+fed.df <- paragraph_quarterly[which(paragraph_quarterly$central_bank == "Federal Reserve"),]
+bank.df <- paragraph_quarterly[which(paragraph_quarterly$central_bank == "Bank of England"),]
+ecb.df <- paragraph_quarterly[which(paragraph_quarterly$central_bank == "European Central Bank"),]
+
+
+
+ggplot() + 
+  scale_color_manual("Corpus",
+                     values = c("BoE" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2")) +
+  geom_line(data = bank.df, aes(x = meet_date, y = ind, color = "BoE")) +
+  geom_line(data = fed.df, aes(x = meet_date, y = ind, color = "Fed")) +
+  geom_line(data = ecb.df, aes(x = meet_date, y = ind, color = "ECB")) +
+  xlab('Meeting date') +
+  ylab("Number of paragraphs")
+  #ggtitle("Number of paragraphs over time")
+ggsave(paste0(export_dir, "CBC_paragraphs.png"))
+
+
 
 ############################# Convert to labelled DTM ############################# 
 
@@ -65,6 +92,11 @@ paragraph.lda
 ### Store the topic beta vectors
 paragraph.topics <- tidy(paragraph.lda, matrix = "beta")
 paragraph.topics
+
+# Write the topic vectors to file
+clean_filename = paste(clean_dir, "CBC/allbank_paragraph_topics.csv", sep = "/")
+write.csv(paragraph.topics, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+# nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 # Identify the top ten terms for each topic
 top.terms <- paragraph.topics %>%
@@ -210,7 +242,7 @@ for (i in 1:k){
             random.order = FALSE,
             rot.per = 0.35,
             colors=brewer.pal(8, "Dark2"),
-            scale=c(5,.5))
+            scale=c(4,.25))
   dev.off()
 }
 #par(opar)
@@ -233,12 +265,12 @@ rownames(ecb.df) <- ecb.df$meeting_id
 ggplot() + 
   scale_color_manual("Central Bank",
                      values = c("BoE" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2")) +
-  geom_line(data = bank.df, aes(x = meet_date, y = T2, color = "BoE")) +
-            geom_line(data = fed.df, aes(x = meet_date, y = T2, color = "Fed")) +
-            geom_line(data = ecb.df, aes(x = meet_date, y = T2, color = "ECB")) +
+  geom_line(data = bank.df, aes(x = meet_date, y = T30, color = "BoE")) +
+            geom_line(data = fed.df, aes(x = meet_date, y = T30, color = "Fed")) +
+            geom_line(data = ecb.df, aes(x = meet_date, y = T30, color = "ECB")) +
             xlab('Meeting date') +
             ylab(expression(theta[bt])) + 
-            ggtitle("Topic 2 over time")
+            ggtitle("Topic 7 over time")
 
 # Plot the topic proportions over time 
 for (i in 1:k){
@@ -283,14 +315,14 @@ for (i in 1:k){
 
 texoutput <- vector()
 beginfigure <- "\\begin{figure}[H]\n\t\\centering\n\t\\caption{LDA Topic "
-begincontentsub <- " (transformed)} \n \t \\begin{subfigure}{.45\\textwidth} 
+begincontentsub <- "} \n \t \\begin{subfigure}{.45\\textwidth} 
 \t\t\\centering 
 \t\t\\includegraphics[width=1.1\\textwidth]{figures/LDA/topic"
 endcontentsub <- "_cloud} \n\t\\end{subfigure} \n"
 begintimesub <- "\t\\begin{subfigure}{.45\\textwidth}
 \t\t\\centering\n\t\t
 \t\t\\includegraphics[width=1\\textwidth]{figures/LDA/topic"
-endfigure <- "_transformed_graph}\n\t\\end{subfigure}\n\\end{figure}"
+endfigure <- "_graph}\n\t\\end{subfigure}\n\\end{figure}"
   
 # Loop over each topic and combine strings to create the .tex code
 for (i in 1:k){

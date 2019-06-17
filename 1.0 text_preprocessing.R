@@ -149,6 +149,15 @@ bankminutes.df$paragraph <- str_trim(bankminutes.df$paragraph)
 # Import the meeting date data
 meeting_dates <- read.csv(paste0(raw_dir, "CBC/boe_meeting_dates.csv"),
                           stringsAsFactors = FALSE)
+# Order by meeting date
+meeting_dates$pub_date <- as.Date(meeting_dates$pub_date, format = "%d/%m/%Y")
+meeting_dates$meet_date <- as.Date(meeting_dates$meet_date, format = "%d/%m/%Y")
+meeting_dates <- meeting_dates[order(meeting_dates$meet_date),]
+
+meeting_dates$difftime <- as.numeric(difftime(meeting_dates$pub_date, meeting_dates$meet_date, units = "days"))
+plot(meeting_dates$meet_date, meeting_dates$difftime, type = "l")
+
+
 
 bankminutes.df <- merge(bankminutes.df, meeting_dates, by = c("year", "month"), all.x = TRUE)
 bankminutes.df <- bankminutes.df[which(bankminutes.df$paragraph != "?"),]
@@ -179,6 +188,7 @@ bankminutes.df[which((str_detect(bankminutes.df$paragraph,
 
 # Remove all the deleted paragraphs from the dataframe
 bankminutes.df <- bankminutes.df[which(!is.na(bankminutes.df$paragraph)),]
+
 
 
 # Create a variable to separate out the paragraphs which are part of the annex
@@ -310,6 +320,9 @@ table(is.na(fedminutes.df$meet_date))
 fedminutes.df$pub_date <- as.Date(fedminutes.df$pub_date, format = "%d/%m/%Y")
 fedminutes.df$meet_date <- as.Date(fedminutes.df$meet_date, format = "%d/%m/%Y")
 fedminutes.df <- fedminutes.df[order(fedminutes.df$meet_date),]
+
+fedminutes.df$difftime <- as.numeric(difftime(fedminutes.df$pub_date, fedminutes.df$meet_date, units = "days"))
+plot(fedminutes.df$meet_date, fedminutes.df$difftime, type = "l")
 
 # First remove the first paragraph of each document
 #View(fedminutes.df[which(fedminutes.df$meet_date != dplyr::lag(fedminutes.df$meet_date)),])

@@ -16,6 +16,7 @@ require(lubridate)
 require(stargazer)
 require(zoo)
 require(urca)
+require(readxl)
 
 ### Define the directories where raw data is stored and clean will be saved
 clean_dir <- "~/Documents/DPhil/Clean_Data/"
@@ -23,7 +24,7 @@ raw_dir <- "~/Documents/DPhil/Raw_Data/"
 export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 # Set some parameters
-topicnumber <- 30
+topicnumber <- 10
 var_used <- "y"
 variablenames <- paste0(var_used, 1:topicnumber)
 
@@ -135,7 +136,6 @@ rownames(ecb.df) <- ecb.df$meeting_id
 
 
 ### Import policy rates for each bank from BIS database
-# EZ policy rate 
 import_filename <- paste(raw_dir, "Macro_data/BIS_website/cbpol_1902.xlsx", sep = "")
 import.df <- read_xlsx(import_filename, sheet = "Monthly Series", skip = 3)
 import.df <- as.data.frame(import.df)
@@ -147,6 +147,7 @@ import.df$ecb_policy_rate <- import.df[,"M:XM"]
 
 import.df <- import.df[,c("month", "fed_policy_rate", "bank_policy_rate", "ecb_policy_rate")]
 
+fed.df$month <- as.Date(fed.df$month)
 fed.df <- merge(fed.df, import.df[,c("month", "fed_policy_rate")], by = "month", all.x = TRUE)
 rownames(fed.df) <- fed.df$meeting_id
 fed.df$policy_rate <- fed.df$fed_policy_rate
@@ -174,7 +175,6 @@ ggplot() +
   xlab('Date') +
   ylab("GDP growth (same period, previous year")
   #ggtitle("GDP growth")
-ggsave(paste0(export_dir, "Macro_series/Growth_rates.png"))
 
 ggplot() + 
   scale_color_manual("", values = c("UK inflation (monthly)" = "black", "US inflation (monthly)" = "blue3", "EZ inflation (monthly)" = "darkgoldenrod2",
@@ -190,7 +190,6 @@ ggplot() +
   xlab('Date') +
   ylab("CPI inflation (same period, previous year")
 #ggtitle("GDP growth")
-ggsave(paste0(export_dir, "Macro_series/Inflation_rates.png"))
 
 ggplot() + 
   scale_color_manual("",
@@ -201,7 +200,6 @@ ggplot() +
   xlab('Date') +
   ylab("Policy rate (percent, from BIS)")
 #ggtitle("GDP growth")
-ggsave(paste0(export_dir, "Macro_series/Policy_rates.png"))
 
 
 
@@ -303,14 +301,34 @@ ggplot() +
                                     "BoE PC1q" = 2, "Fed PC1q" = 2, "ECB PC1q" = 2)) +
   geom_line(data = bank.df, aes(x = meet_date, y = PC1, color = "BoE PC1",linetype = "BoE PC1")) +
   geom_line(data = fed.df, aes(x = meet_date, y = PC1, color = "Fed PC1", linetype = "Fed PC1")) +
-  geom_line(data = ecb.df, aes(x = meet_date, y = PC1, color = "ECB PC1", linetype = "ECB PC1")) +
+  geom_line(data = ecb.df, aes(x = meet_date, y = -PC1, color = "ECB PC1", linetype = "ECB PC1")) +
   geom_line(data = bank.df, aes(x = quarter, y = PC1q, color = "BoE PC1q",linetype = "BoE PC1q")) +
-  geom_line(data = fed.df, aes(x = quarter, y = -PC1q, color = "Fed PC1q",linetype = "Fed PC1q")) +
+  geom_line(data = fed.df, aes(x = quarter, y = PC1q, color = "Fed PC1q",linetype = "Fed PC1q")) +
   geom_line(data = ecb.df, aes(x = quarter, y = PC1q, color = "ECB PC1q",linetype = "ECB PC1q")) +
   xlab('Date') +
   ylab("First Principal Component")
 #ggtitle("GDP growth")
-ggsave(paste0(export_dir, "PCA/PC1_acrossbanks.png"))
+#ggsave(paste0(export_dir, "PCA/PC_acrossbanks_pc1.png"))
+
+
+
+### Plot the PCs
+
+ggplot() + 
+  scale_color_manual("", values = c("BoE PC" = "black", "Fed PC" = "blue3", "ECB PC" = "darkgoldenrod2",
+                                    "BoE PCq" = "black", "Fed PCq" = "blue3", "ECB PCq" = "darkgoldenrod2")) +
+  scale_linetype_manual("",values=c("BoE PC" = 1, "Fed PC" = 1, "ECB PC" = 1,
+                                    "BoE PCq" = 2, "Fed PCq" = 2, "ECB PCq" = 2)) +
+  geom_line(data = bank.df, aes(x = meet_date, y = PC1 + PC2, color = "BoE PC",linetype = "BoE PC")) +
+  geom_line(data = fed.df, aes(x = meet_date, y = -PC1 - PC2, color = "Fed PC", linetype = "Fed PC")) +
+  geom_line(data = ecb.df, aes(x = meet_date, y = PC1 + PC2, color = "ECB PC", linetype = "ECB PC")) +
+  geom_line(data = bank.df, aes(x = quarter, y = -PC1q + PC2q, color = "BoE PCq",linetype = "BoE PCq")) +
+  geom_line(data = fed.df, aes(x = quarter, y = PC1q + PC2q , color = "Fed PCq",linetype = "Fed PCq")) +
+  geom_line(data = ecb.df, aes(x = quarter, y = PC1q + PC2q, color = "ECB PCq",linetype = "ECB PCq")) +
+  xlab('Date') +
+  ylab("First 2 Principal Components")
+#ggtitle("GDP growth")
+
 
 
 ### Are the principal components correlated
@@ -454,7 +472,7 @@ PC1.var <- sd(bank.df$PC1)
 ggplot() + 
   scale_color_manual("",
                      values = c("BoE PC1" = "black", "Fed" = "blue3", "ECB" = "darkgoldenrod2", "UK Inflation" = "red")) +
-  geom_line(data = bank.df, aes(x = meet_date, y = (PC1 - PC1.mean)/PC1.var, color = "BoE PC1")) +
+  geom_line(data = bank.df, aes(x = meet_date, y = -(PC1 - PC1.mean)/PC1.var, color = "BoE PC1")) +
   #geom_line(data = bank.df, aes(x = meet_date, y = -PC2- PC1, color = "BoE")) +
   geom_line(data = bank.df, aes(x= meet_date, y = (inflation_monthly - inf.mean)/inf.var, color = "UK Inflation")) +
   xlab('Meeting date') +
