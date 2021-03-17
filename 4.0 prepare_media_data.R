@@ -190,7 +190,7 @@ nyt.df <- nyt.df[,c("unique_id", "date_num", "headline", "main_text")]
 
 nyt.df$date_num <- as.Date(nyt.df$date_num)
 nyt.df <- nyt.df[which(nyt.df$date_num >= "1993-01-01"),]
-nyt.df <- nyt.df[which(nyt.df$date_num < "2015-01-01"),]
+nyt.df <- nyt.df[which(nyt.df$date_num < "2017-12-31"),]
 
 # Some basic stats about the NYT data
 nyt.df$nchar <- nchar(nyt.df$main_text)
