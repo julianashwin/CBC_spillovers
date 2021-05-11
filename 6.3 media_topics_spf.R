@@ -383,7 +383,7 @@ total.panel <- pdata.frame(data.frame(total.panel), index = c("series", "period"
 
 
 
-clean_filename = paste(clean_dir, "topics_forecasts_panel_long.csv", sep = "/")
+clean_filename = paste(clean_dir, "CBC/topics_forecasts_panel_long.csv", sep = "/")
 write.csv(total.panel, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
