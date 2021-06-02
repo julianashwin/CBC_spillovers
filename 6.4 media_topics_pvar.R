@@ -35,23 +35,33 @@ total.panel <- pdata.frame(total.df, index = c("series", "period"))
 
 
 ## Panel VAR
-varone <-pvargmm(
+var_std <- pvarfeols(
   dependent_vars = c("fed_std","news_std","dispersion_std"),
   lags = 4,
-  #exog_vars = c("INDB"),
-  transformation = "fd",
+  #exog_vars,
+  transformation = c("fod"),
   data = total.df,
-  panel_identifier = c("series", "period"),
-  steps = c("twostep"),
-  system_instruments = TRUE,
-  max_instr_dependent_vars = 99,
-  min_instr_dependent_vars = 2L,
-  collapse = FALSE
+  panel_identifier = c("series", "period")
 )
 
-summary(varone)
 
+summary(var_std)
+stab_varone <- stability(var_std)
+print(stab_varone)
+plot(stab_varone)
 
+varone_oirf <- oirf(var_std, n.ahead = 12)
+plot(varone_oirf)
+varone_girf <- girf(var_std, n.ahead = 12, ma_approx_steps = 12)
+plot(varone_girf)
+
+ex1_dahlberg_data_bs <- bootstrap_irf(ex1_dahlberg_data, typeof_irf = c("GIRF"),
+                                      n.ahead = 8,
+                                      nof_Nstar_draws = 500,
+                                      confidence.band = 0.95)
+
+varone_bs <- bootstrap_irf(var_std, typeof_irf = c("GIRF"), 
+                           n.ahead = 12, nof_Nstar_draws = 10, confidence.band = 0.95)
 
 
 ############################# Panel analysis on the series ############################# 
@@ -64,7 +74,7 @@ model1_std <- felm(dispersion_std ~ plm::lag(fed_std, 0) + plm::lag(news_std, 0)
 summary(model1_std)
 model2 <- felm(dispersion ~ plm::lag(fed, 0:1) + plm::lag(news, 0:1) + plm::lag(dispersion, 1:3) | series + period, data = total.panel)
 summary(model2)
-model2_std <- felm(dispersion_std ~ plm::lag(fed_std, -1:1) + plm::lag(news_std, -1:1) + plm::lag(dispersion_std, 1:3) | series + period, data = total.panel)
+model2_std <- felm(dispersion_std ~ plm::lag(fed_std, 0:1) + plm::lag(news_std, 0:1) + plm::lag(dispersion_std, 1:3) | series + period, data = total.panel)
 summary(model2_std)
 
 
@@ -81,7 +91,7 @@ model <- felm(fed ~ plm::lag(dispersion, 0:1) + plm::lag(news, 0:1) + plm::lag(f
 summary(model)
 model4 <- felm(fed ~ plm::lag(dispersion, -1:1)  + plm::lag(fed, 1:3) | series + quarter, data = total.panel)
 summary(model4)
-model4_std <- felm(fed_std ~ plm::lag(dispersion_std, -1:1) + plm::lag(fed_std, 1:3) | series + quarter, data = total.panel)
+model4_std <- felm(fed_std ~ plm::lag(dispersion_std, 0:1) + plm::lag(fed_std, 1:3) | series + quarter, data = total.panel)
 summary(model4_std)
 
 # NYT articles as dependent variable
@@ -97,7 +107,7 @@ model <- felm(news ~ plm::lag(dispersion, 0:1) + plm::lag(fed, 0:1) + plm::lag(n
 summary(model)
 model6 <- felm(news ~ plm::lag(dispersion, -1:1) + plm::lag(news, 1:3) | series + quarter, data = total.panel)
 summary(model6)
-model6_std <- felm(news_std ~ plm::lag(dispersion_std, -1:1) + plm::lag(news_std, 1:3) | series + quarter, data = total.panel)
+model6_std <- felm(news_std ~ plm::lag(dispersion_std, 0:1) + plm::lag(news_std, 1:3) | series + quarter, data = total.panel)
 summary(model6_std)
 
 
