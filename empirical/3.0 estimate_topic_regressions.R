@@ -46,10 +46,10 @@ ggplot() +
             aes(x = meet_date, y = difftime, color = "Fed minutes")) +
   geom_line(data = meeting.df[which(meeting.df$central_bank == "European Central Bank"),],
             aes(x= meet_date, y = difftime, color = "ECB statements")) +
-  xlab("Meeting date") +
+  xlab("Meeting date") + theme_bw() + 
   ylab("Days between meeting and publication date")
 #ggtitle("GDP growth")
-ggsave(paste0(export_dir, "meeting_pub_date.png"))
+ggsave(paste0(export_dir, "meeting_pub_date.png"), width = 8, height = 3)
 
 
 
@@ -183,6 +183,8 @@ pvar_model1_std <-
             data = data.frame(stand_panel.df),
             panel_identifier= c("topic", "period"))
 summary(pvar_model1_std)
+varone_girf <- girf(pvar_model1_std, n.ahead = 12, ma_approx_steps = 12)
+plot(varone_girf)
 
 
 pvar_model3 <- 
@@ -204,6 +206,124 @@ summary(pvar_model3_std)
 stab_pvar_model <- stability(pvar_model3_std)
 print(stab_pvar_model)
 plot(stab_pvar_model)
+
+
+individuals <- unique(stand_panel.df$topic)
+ndraws <- 5000
+n_ahead <- 24
+## Store results
+girf_draws <- data.frame(draw = 1:ndraws)
+# Dispersion shock
+girf_draws[,c(paste0("fed_on_fed_", 1:n_ahead),paste0("fed_on_boe_", 1:n_ahead),
+              paste0("fed_on_ecb_", 1:n_ahead))] <- 0
+# News shock
+girf_draws[,c(paste0("boe_on_fed_", 1:n_ahead),paste0("boe_on_boe_", 1:n_ahead),
+              paste0("boe_on_ecb_", 1:n_ahead))] <- 0
+# FOMC shock
+girf_draws[,c(paste0("ecb_on_fed_", 1:n_ahead),paste0("ebc_on_boe_", 1:n_ahead),
+              paste0("ecb_on_ecb_", 1:n_ahead))] <- 0
+
+pb = txtProgressBar(min = 1, max = ndraws, initial = 1) 
+for (nn in 1:ndraws){
+  setTxtProgressBar(pb,nn)
+  # Blockwise sample individuals
+  sub_inds <- sample(individuals, length(individuals), replace = TRUE)
+  sub.df <- stand_panel.df[which(as.character(stand_panel.df$topic) == as.character(sub_inds[1])),]
+  for (si in as.character(sub_inds[2:length(sub_inds)])){
+    sub.df <- rbind(sub.df, stand_panel.df[which(as.character(stand_panel.df$topic) == si),])
+  }
+  typeof(sub.df)
+  # Estimate VAR by OLS
+  var_sub <- pvarfeols(
+    dependent_vars = c("fed_value_std", "bank_value_std", "ecb_value_std"),
+    lags = 3,
+    #exog_vars,
+    transformation = c("demean"),
+    data = data.frame(sub.df),
+    panel_identifier = c("topic", "period")
+  )
+  # Compute IRFs
+  varsub_girf <- girf(var_sub, n.ahead = n_ahead, ma_approx_steps = n_ahead)
+  
+  # Save GIRF results for disp shock
+  girf_draws[nn,paste0("fed_on_fed_", 1:n_ahead)] <- varsub_girf$fed_value_std[,"fed_value_std"]
+  girf_draws[nn,paste0("fed_on_boe_", 1:n_ahead)] <- varsub_girf$fed_value_std[,"bank_value_std"]
+  girf_draws[nn,paste0("fed_on_ecb_", 1:n_ahead)] <- varsub_girf$fed_value_std[,"ecb_value_std"]
+  # Save OIRF results for news shock
+  girf_draws[nn,paste0("boe_on_fed_", 1:n_ahead)] <- varsub_girf$bank_value_std[,"fed_value_std"]
+  girf_draws[nn,paste0("boe_on_boe_", 1:n_ahead)] <- varsub_girf$bank_value_std[,"bank_value_std"]
+  girf_draws[nn,paste0("boe_on_ecb_", 1:n_ahead)] <- varsub_girf$bank_value_std[,"ecb_value_std"]
+  # Save OIRF results for fed shock
+  girf_draws[nn,paste0("ecb_on_fed_", 1:n_ahead)] <- varsub_girf$ecb_value_std[,"fed_value_std"]
+  girf_draws[nn,paste0("ecb_on_boe_", 1:n_ahead)] <- varsub_girf$ecb_value_std[,"bank_value_std"]
+  girf_draws[nn,paste0("ecb_on_ecb_", 1:n_ahead)] <- varsub_girf$ecb_value_std[,"ecb_value_std"]
+  
+}
+
+
+
+### Plot IRFs with bootstrapped CIs
+varobj <- varone_girf 
+btstrpobj <- girf_draws
+name <- "fed_on_fed_"
+create_btsrp_df <- function(n_ahead,btstrpobj,name){
+  btstrp_df <- data.frame(period = 0:(n_ahead-1))
+  btstrp_df[,c("quant_0p025", "quant_0p975", "quant_0p5", "quant_0p15", "quant_0p85")] <- 0
+  for (ll in 1:n_ahead){
+    btstrp_dist <- btstrpobj[,paste0(name, ll)]
+    btstrp_df$quant_0p025[ll] <- quantile(btstrp_dist, probs = c(0.025))
+    btstrp_df$quant_0p975[ll] <- quantile(btstrp_dist, probs = c(0.975))
+    btstrp_df$quant_0p15[ll] <- quantile(btstrp_dist, probs = c(0.15))
+    btstrp_df$quant_0p85[ll] <- quantile(btstrp_dist, probs = c(0.85))
+    btstrp_df$quant_0p5[ll] <- quantile(btstrp_dist, probs = c(0.5))
+  }
+  return(btstrp_df)
+}
+
+plt_btstrp <- function(btstrp_df){
+  p1 <- ggplot(btstrp_df,aes(x=period)) + geom_line(aes(y=quant_0p5)) + theme_bw() +
+    xlab("Periods") + ylab("Response") + geom_hline(yintercept = 0, linetype = 2) + 
+    geom_ribbon(aes(ymin = quant_0p025, ymax = quant_0p975), fill= "black", alpha = 0.2) +
+    geom_ribbon(aes(ymin = quant_0p15, ymax = quant_0p85), fill = "black", alpha = 0.4) +
+    scale_x_continuous(breaks= pretty_breaks())
+  return(p1)
+}
+# FOMC shock
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"fed_on_fed_")
+plt_btstrp(btstrp_df) + ggtitle("FOMC focus on FOMC focus")
+ggsave("empirical/figures/CB_GIRFs/fed_fed.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"fed_on_boe_")
+plt_btstrp(btstrp_df) + ggtitle("FOMC focus on MPC focus")
+ggsave("empirical/figures/CB_GIRFs/fed_boe.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"fed_on_ecb_")
+plt_btstrp(btstrp_df) + ggtitle("FOMC focus on GC focus")
+ggsave("empirical/figures/CB_GIRFs/fed_ecb.pdf", width = 4, height = 3)
+# MPC shock
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"boe_on_fed_")
+plt_btstrp(btstrp_df) + ggtitle("MPC focus on FOMC focus")
+ggsave("empirical/figures/CB_GIRFs/boe_fed.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"boe_on_boe_")
+plt_btstrp(btstrp_df) + ggtitle("MPC focus on MPC focus")
+ggsave("empirical/figures/CB_GIRFs/boe_boe.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"boe_on_ecb_")
+plt_btstrp(btstrp_df) + ggtitle("MPC focus on GC focus")
+ggsave("empirical/figures/CB_GIRFs/boe_ecb.pdf", width = 4, height = 3)
+# GC shock
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"ecb_on_fed_")
+plt_btstrp(btstrp_df) + ggtitle("GC focus on FOMC focus")
+ggsave("empirical/figures/CB_GIRFs/ecb_fed.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"ecb_on_boe_")
+plt_btstrp(btstrp_df) + ggtitle("GC focus on MPC focus")
+ggsave("empirical/figures/CB_GIRFs/ecb_boe.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,girf_draws,"ecb_on_ecb_")
+plt_btstrp(btstrp_df) + ggtitle("GC focus on GC focus")
+ggsave("empirical/figures/CB_GIRFs/ecb_ecb.pdf", width = 4, height = 3)
+
+
+
+
+
+
 
 
 

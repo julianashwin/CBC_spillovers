@@ -152,39 +152,50 @@ model1 <- felm(meeting_value ~ premeetarticle_value | topic, data = full_panel.d
 summary(model1)
 model1_std <- felm(meeting_value_std ~ premeetarticle_value_std | topic, data = stand_panel.df)
 summary(model1_std)
-model2 <- felm(meeting_value ~ plm::lag(premeetarticle_value, 0:3) + plm::lag(meeting_value, 1:3) | topic, data = full_panel.df)
+model2 <- felm(meeting_value ~ plm::lag(premeetarticle_value, 0:3) + 
+                 plm::lag(meeting_value, 1:3) | topic + period, data = full_panel.df)
 summary(model2)
 model2_std <- felm(meeting_value_std ~ plm::lag(premeetarticle_value_std, 0:3) + 
-                     plm::lag(meeting_value_std, 1:3) | topic, data = stand_panel.df)
+                     plm::lag(meeting_value_std, 1:3) | topic + period, data = stand_panel.df)
 summary(model2_std)
 
 # Quick test for autocorrelated residuals
-res = model2$residuals 
+res = model2_std$residuals 
 n = length(res) 
 mod2 = lm(res[-n] ~ res[-1]) 
 summary(mod2)
 
 # Do the minutes predict media articles?
-model3 <- felm(postpubarticle_value ~ meeting_value + prepubarticle_value| topic, data = full_panel.df)
+model3 <- felm(postpubarticle_value - prepubarticle_value ~ meeting_value| topic, data = full_panel.df)
 summary(model3)
-model3_std <- felm(postpubarticle_value_std ~ meeting_value_std + prepubarticle_value_std | topic, data = stand_panel.df)
+model3_std <- felm(postpubarticle_value_std - prepubarticle_value_std ~ meeting_value_std | topic, data = stand_panel.df)
 summary(model3_std)
-model4 <- felm(postpubarticle_value ~ meeting_value + prepubarticle_value + premeetarticle_value + 
-                 postmeetarticle_value | topic, data = full_panel.df)
+
+model4 <- felm(postpubarticle_value - prepubarticle_value ~ plm::lag(meeting_value,0:1) +
+                 + plm::lag(prepubarticle_value,0) + plm::lag(postmeetarticle_value,0) + 
+                 plm::lag(premeetarticle_value,0) + 
+                 plm::lag(postpubarticle_value - prepubarticle_value,1:3)| topic + period, data = full_panel.df)
 summary(model4)
-model4_std <- felm(postpubarticle_value_std ~ meeting_value_std + prepubarticle_value_std 
-                   + postmeetarticle_value_std| topic, data = stand_panel.df)
+model4_std <- felm(postpubarticle_value_std - prepubarticle_value_std ~ plm::lag(meeting_value_std,0:1) +
+                   + plm::lag(prepubarticle_value_std,0) + plm::lag(postmeetarticle_value_std,0) + 
+                     plm::lag(premeetarticle_value_std,0) + 
+                     plm::lag(postpubarticle_value_std - prepubarticle_value_std,1:3)| topic + period, data = stand_panel.df)
 summary(model4_std)
 
-model5 <- felm(postmeetarticle_value ~ meeting_value + premeetarticle_value| topic, data = full_panel.df)
+model5 <- felm(postpubarticle_value ~ meeting_value + prepubarticle_value| topic, data = full_panel.df)
 summary(model3)
-model5_std <- felm(postmeetarticle_value_std ~ meeting_value_std + premeetarticle_value_std | topic, data = stand_panel.df)
+model5_std <- felm(postpubarticle_value_std  ~ plm::lag(meeting_value_std,0) +
+                     + plm::lag(prepubarticle_value_std,0)| topic, data = stand_panel.df)
 summary(model5_std)
-model6 <- felm(postmeetarticle_value ~ meeting_value + premeetarticle_value
-               + plm::lag(premeetarticle_value, 1:3) | topic, data = full_panel.df)
+model6 <- felm(postpubarticle_value ~ plm::lag(meeting_value,0:1) +
+                 + plm::lag(prepubarticle_value,0) + plm::lag(postmeetarticle_value,0) + 
+                 plm::lag(premeetarticle_value,0)+ plm::lag(postpubarticle_value, 1:3)|
+                 topic + period, data = full_panel.df)
 summary(model6)
-model6_std <- felm(postmeetarticle_value_std ~ meeting_value_std + premeetarticle_value_std 
-                   + plm::lag(premeetarticle_value_std, 1:3)| topic, data = stand_panel.df)
+model6_std <- felm(postpubarticle_value_std ~ plm::lag(meeting_value_std,0:1) +
+                     + plm::lag(prepubarticle_value_std,0) + plm::lag(postmeetarticle_value_std,0) + 
+                     plm::lag(premeetarticle_value_std,0) + plm::lag(postpubarticle_value_std, 1:3)|
+                     topic + period, data = stand_panel.df)
 summary(model6_std)
 
 
