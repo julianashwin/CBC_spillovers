@@ -334,17 +334,17 @@ plt_s1b = histogram2d(sim_df.s_b1, sim_df.a_b1, nbins=100,
 How do variances affect the average attention given to a_b1?
 """
 ## σ_ϵb1
-σ_ϵb1_df = sensitivity_analysis(:σ_ϵb1, 0.1:0.1:3, par, nruns = 50000)
+σ_ϵb1_df = sensitivity_analysis(:σ_ϵb1, 0.1:0.1:3, par, nruns = 100000)
 CSV.write("model_results/sigma_epsilonb_df.csv",σ_ϵb1_df)
 plt_σ_ϵb1 = plot(σ_ϵb1_df.param, σ_ϵb1_df.a1, legend = false, ylabel = raw"$a_{b,i,t}$",
     xlabel = raw"$\sigma^2_{b,\epsilon,i}$")
 ## σ_νb1
-σ_νb1_df = sensitivity_analysis(:σ_νb1, 0.1:0.1:3, par, nruns = 50000)
+σ_νb1_df = sensitivity_analysis(:σ_νb1, 0.1:0.1:3, par, nruns = 100000)
 CSV.write("model_results/sigma_nub_df.csv",σ_νb1_df)
 plt_σ_νb1 = plot(σ_νb1_df.param, σ_νb1_df.a1, legend = false, ylabel = raw"$a_{b,i,t}$",
     xlabel = raw"$\sigma^2_{b,\nu,i}$")
 ## σ_ηb1
-σ_ηb1_df = sensitivity_analysis(:σ_ηb1, 0.1:0.1:3, par, nruns = 50000)
+σ_ηb1_df = sensitivity_analysis(:σ_ηb1, 0.1:0.1:3, par, nruns = 100000)
 CSV.write("model_results/sigma_etab_df.csv",σ_ηb1_df)
 plt_σ_ηb1 = plot(σ_ηb1_df.param, σ_ηb1_df.a1, legend = false, ylabel = raw"$a_{b,i,t}$",
     xlabel = raw"$\sigma^2_{b,\eta,i}$")
@@ -406,18 +406,18 @@ savefig("model_figs/attention_sensitivity.pdf")
 
 ## Co-movement example
 plot(layout = (2,3))
-plot!(σ_bc1_df.param, σ_bc1_df.a1, legend = false, ylabel = raw"$\mathbb{E} a_{b,i,t}$",
-    xlabel = raw"$\sigma_{bc,i}$", subplot = 1)
+plot!(σ_bc1_df.param, σ_bc1_df.a1, legend = false, ylabel = raw"$\mathbb{E} a_{b,1,t}$",
+    xlabel = raw"$\sigma_{bc,1}$", subplot = 1)
 plot!(σ_bc_df.param1, σ_bc_df.Cor_ab1ac1, legend = false, #ylim = (0.0, 0.25),
-    ylabel = raw"$Cor(a_{b,i,t},a_{c,i,t})$", xlabel = raw"$\sigma_{bc}$", subplot = 4)
-plot!(σ_νc_df.param1, σ_νc_df.ab1, legend = false, ylabel = raw"$\mathbb{E} a_{b,i,t}$",
+    ylabel = raw"$Cor(a_{b,1,t},a_{c,1,t})$", xlabel = raw"$\sigma_{bc}$", subplot = 4)
+plot!(σ_νc_df.param1, σ_νc_df.ab1, legend = false, ylabel = raw"$\mathbb{E} a_{b,1,t}$",
     xlabel = raw"$\sigma^2_{c,\nu}$", subplot = 2)
 plot!(σ_νc_df.param1, σ_νc_df.Cor_ab1ac1, legend = false, ylim = (0.0, 0.25),
-    ylabel = raw"$Cor(a_{b,i,t},a_{c,i,t})$", xlabel = raw"$\sigma^2_{c,\nu}$", subplot = 5)
-plot!(σ_ηc_df.param1, σ_ηc_df.ab1, legend = false, ylabel = raw"$\mathbb{E} a_{b,i,t}$",
+    ylabel = raw"$Cor(a_{b,1,t},a_{c,1,t})$", xlabel = raw"$\sigma^2_{c,\nu}$", subplot = 5)
+plot!(σ_ηc_df.param1, σ_ηc_df.ab1, legend = false, ylabel = raw"$\mathbb{E} a_{b,1,t}$",
     xlabel = raw"$\sigma^2_{c,\eta}$", subplot = 3)
 plot!(σ_ηc_df.param1, σ_ηc_df.Cor_ab1ac1, legend = false, ylim = (0.0, 0.25),
-    ylabel = raw"$Cor(a_{b,i,t},a_{c,i,t})$", xlabel = raw"$\sigma^2_{c,\eta}$", subplot = 6)
+    ylabel = raw"$Cor(a_{b,1,t},a_{c,1,t})$", xlabel = raw"$\sigma^2_{c,\eta}$", subplot = 6)
 # Save
 savefig("model_figs/comovement_sensitivity.pdf")
 
