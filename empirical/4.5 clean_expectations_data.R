@@ -23,23 +23,23 @@ require(zoo)
 
 ### Define the directories where raw data is stored and clean will be saved
 raw_dir <- "~/Documents/DPhil/Raw_Data/"
-clean_dir <- "~/Documents/DPhil/Clean_Data/"
+clean_dir <- "data/"
 export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 
 ############################# Import the topic proportions ############################# 
 
 # Import the weekly article data, averaged over articles
-import_filename = paste(clean_dir, "CBC/articlemeans_jointtopics.csv", sep = "/")
+import_filename = paste0(clean_dir, "articlemeans_jointtopics.csv")
 articlelevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
 # Import the minutes data estimated at the meeting level
-import_filename = paste(clean_dir, "CBC/fedmeetingmeans_jointtopics.csv", sep = "/")
+import_filename = paste0(clean_dir, "fedmeetingmeans_jointtopics.csv")
 meetinglevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 # Import details for meetings to merge with 
-clean_filename = paste(clean_dir, "CBC/fedminutes_long_clean.csv", sep = "/")
+clean_filename = paste0(clean_dir, "fedminutes_long_clean.csv")
 fedminutes.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 fedminutes.df$meet_date <- as.Date(fedminutes.df$meet_date)
 fedminutes.df$pub_date <- as.Date(fedminutes.df$pub_date)
@@ -77,13 +77,13 @@ meeting.df$quarter <- floor_date(meeting.df$meet_date, "quarter")
 meeting.quarterly <- meeting.df %>%
   select(quarter, variablenames) %>%
   group_by(quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(mean)
 
 pre_articles.df$quarter <- floor_date(pre_articles.df$meet_date, "quarter")
 articles.quarterly <- pre_articles.df %>%
   select(quarter, variablenames) %>%
   group_by(quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(mean)
 
 names2 <- paste0(variablenames,"_news")
 articles.quarterly[,names2] <- articles.quarterly[,variablenames]
@@ -96,7 +96,7 @@ total.df <- topics.df
 code <- "NGDP"
 descrip <- "Growth"
 topic <- 20
-disp_measure = 1
+disp_measure = 1 # disp = 1 is levels, and 2 is growth
 annual = FALSE
 fed = TRUE
 news = TRUE
