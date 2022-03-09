@@ -1,5 +1,5 @@
 ####
-# This file estimates panel regressions on the Fed minutes NYT articles combined/joint topics.
+# This file combines SPF data with the NYT and Fed topics
 ####
 
 setwd("~/Documents/GitHub/CBC_spillovers")
@@ -22,24 +22,23 @@ require(zoo)
 
 
 ### Define the directories where raw data is stored and clean will be saved
-raw_dir <- "~/Documents/DPhil/Raw_Data/"
-clean_dir <- "~/Documents/DPhil/Clean_Data/"
-export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
+clean_dir <- "data/"
+export_dir <- "figures/"
 
 
 ############################# Import the topic proportions ############################# 
 
 # Import the weekly article data, averaged over articles
-import_filename = paste(clean_dir, "CBC/articlemeans_jointtopics_long.csv", sep = "/")
+import_filename = paste0(clean_dir, "articlemeans_jointtopics.csv")
 articlelevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
 # Import the minutes data estimated at the meeting level
-import_filename = paste(clean_dir, "CBC/fedmeetingmeans_jointtopics_long.csv", sep = "/")
+import_filename = paste0(clean_dir, "fedmeetingmeans_jointtopics.csv")
 meetinglevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 # Import details for meetings to merge with 
-clean_filename = paste(clean_dir, "CBC/fedminutes_long_clean.csv", sep = "/")
+clean_filename = paste0(clean_dir, "fedminutes_long_clean.csv")
 fedminutes.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 fedminutes.df$meet_date <- as.Date(fedminutes.df$meet_date)
 fedminutes.df$pub_date <- as.Date(fedminutes.df$pub_date)
@@ -51,22 +50,13 @@ meeting.df$pub_date <- as.Date(meeting.df$pub_date)
 
 
 # Split and merge the articles data
-premeet_articles <- articlelevel.means[which(!is.na(articlelevel.means$subsequent_meeting)),]
-premeet_articles$meeting_id <- premeet_articles$subsequent_meeting
-premeet_articles <- merge(premeet_articles, meeting.key, by = "meeting_id")
+pre_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$subsequent_meeting)),]
+pre_articles.df$meeting_id <- pre_articles.df$subsequent_meeting
+pre_articles.df <- merge(pre_articles.df, meeting.key, by = "meeting_id")
 
-postmeet_articles <- articlelevel.means[which(!is.na(articlelevel.means$recent_meeting)),]
-postmeet_articles$meeting_id <- postmeet_articles$recent_meeting
-postmeet_articles <- merge(postmeet_articles, meeting.key, by = "meeting_id")
-
-prepub_articles <- articlelevel.means[which(!is.na(articlelevel.means$subsequent_pub)),]
-prepub_articles$meeting_id <- prepub_articles$subsequent_pub
-prepub_articles <- merge(prepub_articles, meeting.key, by = "meeting_id")
-
-postpub_articles <- articlelevel.means[which(!is.na(articlelevel.means$recent_pub)),]
-postpub_articles$meeting_id <- postpub_articles$recent_pub
-postpub_articles <- merge(postpub_articles, meeting.key, by = "meeting_id")
-
+post_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$recent_meeting)),]
+post_articles.df$meeting_id <- post_articles.df$recent_meeting
+post_articles.df <- merge(post_articles.df, meeting.key, by = "meeting_id")
 
 
 
@@ -86,13 +76,13 @@ meeting.df$quarter <- floor_date(meeting.df$meet_date, "quarter")
 meeting.quarterly <- meeting.df %>%
   select(quarter, variablenames) %>%
   group_by(quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(mean)
 
-premeet_articles$quarter <- floor_date(premeet_articles$meet_date, "quarter")
-articles.quarterly <- premeet_articles %>%
+pre_articles.df$quarter <- floor_date(pre_articles.df$meet_date, "quarter")
+articles.quarterly <- pre_articles.df %>%
   select(quarter, variablenames) %>%
   group_by(quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(mean)
 
 names2 <- paste0(variablenames,"_news")
 articles.quarterly[,names2] <- articles.quarterly[,variablenames]
@@ -101,15 +91,15 @@ articles.quarterly <- articles.quarterly[,c("quarter", names2)]
 topics.df <- merge(meeting.quarterly, articles.quarterly, by = "quarter", all.x = TRUE)
 total.df <- topics.df
 
-
-code <- "NGDP"
-descrip <- "Growth"
+"
+code <- 'NGDP'
+descrip <- 'Growth'
 topic <- 20
-disp_measure = 1
+disp_measure = 1 # disp = 1 is levels, and 2 is growth
 annual = FALSE
 fed = TRUE
 news = TRUE
-
+"
 
 
 ############################# Match topics with SPF series ############################# 
@@ -118,7 +108,7 @@ news = TRUE
 
 plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.df, annual = FALSE,
                            fed = TRUE, news = TRUE){
-  import_filename <- paste0(raw_dir, "SPF/Dispersion_", disp_measure, ".xlsx")
+  import_filename <- paste0(clean_dir, "SPF/Dispersion_", disp_measure, ".xlsx")
   
   # Read and clean the SPF dispersion data
   dispersion.df <- read_xlsx(import_filename, sheet <- code, skip = 9)
@@ -176,7 +166,7 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
   # Plot CPI nowcast dispersion and quarterly topic propotions
   if (fed){
     command <- paste0("
-                    ggplot(plot.df, aes(x = quarter)) + 
+                    ggplot(plot.df, aes(x = quarter)) + theme_bw() +
                       scale_color_manual(\"Legend\",
                       values = c(\"SPF ", code, " dispersion\" = \"darkturquoise\", \"Fed minutes\" = \"blue3\", 
                       \"NYT articles\" = \"dimgray\")) +
@@ -186,11 +176,12 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
                       xlab(\"Quarter\") +
                       ylab(\"Normalised value\") + 
                       ggtitle(\"", descrip,  " attention and expectation dispersion\")
-                      ggsave(paste0(export_dir, \"SPF_topics/", code, "disp_topic_long", topic, ".png\"))")
+                      ggsave(paste0(export_dir, \"SPF_topics/", code, "disp_topic", topic, ".png\"),
+                        width = 6,height = 4)")
     eval(parse(text=command))
   } else {
     command <- paste0("
-                    ggplot(plot.df, aes(x = quarter)) + 
+                    ggplot(plot.df, aes(x = quarter)) + theme_bw() +
                       scale_color_manual(\"Legend\",
                       values = c(\"SPF ", code, " dispersion\" = \"darkturquoise\", \"Fed minutes\" = \"blue3\", 
                       \"NYT articles\" = \"dimgray\")) +
@@ -199,7 +190,8 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
                       xlab(\"Quarter\") +
                       ylab(\"Normalised value\") + 
                       ggtitle(\"", descrip,  " attention and expectation dispersion\")
-                      ggsave(paste0(export_dir, \"SPF_topics/", code, "disp_topic_long", topic, ".png\"))")
+                      ggsave(paste0(export_dir, \"SPF_topics/", code, "disp_topic", topic, ".png\"),
+                        width = 6,height = 4)")
     eval(parse(text=command))
   }
   
@@ -233,7 +225,7 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
 
 
 # Inflation
-total.df <- plot_topicdisp(code = "CPI", descrip = "Inflation", topic = 16, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "CPI", descrip = "Inflation", topic = 9, topics.df = topics.df, 
                            disp_measure = 1, total.df = total.df)
 cor.test(total.df$CPI_dispersion, total.df$CPI_topic_news)
 cor.test(total.df$CPI_dispersion, total.df$CPI_topic_fed)
@@ -247,37 +239,37 @@ cor.test(total.df$NGDP_dispersion, total.df$NGDP_topic_fed)
 
 
 # Employment
-total.df <- plot_topicdisp(code = "EMP", descrip = "Employment", topic = 24, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "EMP", descrip = "Employment", topic = 16, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$EMP_dispersion, total.df$EMP_topic_news)
 cor.test(total.df$EMP_dispersion, total.df$EMP_topic_fed)
 
 # Unemployment
-total.df <- plot_topicdisp(code = "UNEMP", descrip = "Unemployment", topic = 24, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "UNEMP", descrip = "Unemployment", topic = 16, topics.df = topics.df, 
                            disp_measure = 1,total.df = total.df)
 cor.test(total.df$UNEMP_dispersion, total.df$UNEMP_topic_news)
 cor.test(total.df$UNEMP_dispersion, total.df$UNEMP_topic_fed)
 
 # Profit
-total.df <- plot_topicdisp(code = "CPROF", descrip = "Profits", topic = 22, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "CPROF", descrip = "Profits", topic = 23, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$CPROF_dispersion, total.df$CPROF_topic_news)
 cor.test(total.df$CPROF_dispersion, total.df$CPROF_topic_fed)
 
 # Industrial production
-total.df <- plot_topicdisp(code = "INDPROD", descrip = "Production", topic = 14, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "INDPROD", descrip = "Production", topic = 29, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$INDPROD_dispersion, total.df$INDPROD_topic_news)
 cor.test(total.df$INDPROD_dispersion, total.df$INDPROD_topic_fed)
 
 # Housing/mortgages
-total.df <- plot_topicdisp(code = "HOUSING", descrip = "Housing", topic = 2, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "HOUSING", descrip = "Housing", topic = 26, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$HOUSING_dispersion, total.df$HOUSING_topic_news)
 cor.test(total.df$HOUSING_dispersion, total.df$HOUSING_topic_fed)
 
 # Interest rates
-total.df <- plot_topicdisp(code = "TBILL", descrip = "Interest", topic = 1, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "TBILL", descrip = "Interest", topic = 24, topics.df = topics.df, 
                            disp_measure = 1,total.df = total.df, fed = TRUE)
 cor.test(total.df$TBILL_dispersion, total.df$TBILL_topic_news)
 cor.test(total.df$TBILL_dispersion, total.df$TBILL_topic_fed)
@@ -286,44 +278,44 @@ cor.test(total.df$TBILL_dispersion, total.df$NGDP_topic_news)
 # Real GDP
 total.df <- plot_topicdisp(code = "RGDP", descrip = "RGDP", topic = 20, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
-cor.test(total.df$RGDP_dispersion, total.df$RGDP_topic_news)
-cor.test(total.df$RGDP_dispersion, total.df$RGDP_topic_fed)
+cor.test(total.df$RGDP_dispersion, total.df$TBILL_topic_news)
+cor.test(total.df$RGDP_dispersion, total.df$TBILL_topic_fed)
 
 # Consumption
-total.df <- plot_topicdisp(code = "RCONSUM", descrip = "Consumption", topic = 11, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "RCONSUM", descrip = "Consumption", topic = 19, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$RCONSUM_dispersion, total.df$RCONSUM_topic_news)
 cor.test(total.df$RCONSUM_dispersion, total.df$RCONSUM_topic_fed)
 
 # Investment
-total.df <- plot_topicdisp(code = "RNRESIN", descrip = "Investment", topic = 17, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "RNRESIN", descrip = "Investment", topic = 15, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$RNRESIN_dispersion, total.df$RNRESIN_topic_news)
 cor.test(total.df$RNRESIN_dispersion, total.df$RNRESIN_topic_fed)
 
 # Residential
-total.df <- plot_topicdisp(code = "RRESINV", descrip = "Residential", topic = 2, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "RRESINV", descrip = "Residential", topic = 22, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$RRESINV_dispersion, total.df$RRESINV_topic_news)
 cor.test(total.df$RRESINV_dispersion, total.df$RRESINV_topic_fed)
 
 # Government
-total.df <- plot_topicdisp(code = "RFEDGOV", descrip = "Fiscal", topic = 15, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "RFEDGOV", descrip = "Fiscal", topic = 3, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$RFEDGOV_dispersion, total.df$RFEDGOV_topic_news)
 cor.test(total.df$RFEDGOV_dispersion, total.df$RFEDGOV_topic_fed)
 
 # State Government
-total.df <- plot_topicdisp(code = "RSLGOV", descrip = "State", topic = 15, topics.df = topics.df, 
+total.df <- plot_topicdisp(code = "RSLGOV", descrip = "State", topic = 3, topics.df = topics.df, 
                            disp_measure = 2,total.df = total.df)
 cor.test(total.df$RSLGOV_dispersion, total.df$RSLGOV_topic_news)
 cor.test(total.df$RSLGOV_dispersion, total.df$RSLGOV_topic_fed)
 
 # Equities
-#total.df <- plot_topicdisp(code = "STOCK10", descrip = "Equities", topic = 18, topics.df = topics.df, 
-#                           disp_measure = 1,total.df = total.df, annual = TRUE)
-#cor.test(total.df$STOCK10_dispersion, total.df$STOCK10_topic_news)
-#cor.test(total.df$STOCK10_dispersion, total.df$STOCK10_topic_fed)
+total.df <- plot_topicdisp(code = "STOCK10", descrip = "Equities", topic = 18, topics.df = topics.df, 
+                           disp_measure = 1,total.df = total.df, annual = TRUE)
+cor.test(total.df$STOCK10_dispersion, total.df$STOCK10_topic_news)
+cor.test(total.df$STOCK10_dispersion, total.df$STOCK10_topic_fed)
 
 
 # Test that GDP and CPI are better fits for their respective topics
@@ -383,7 +375,7 @@ total.panel <- pdata.frame(data.frame(total.panel), index = c("series", "period"
 
 
 
-clean_filename = paste(clean_dir, "CBC/topics_forecasts_panel_long.csv", sep = "/")
+clean_filename = paste(clean_dir, "topics_forecasts_panel.csv", sep = "/")
 write.csv(total.panel, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
