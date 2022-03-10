@@ -47,6 +47,7 @@ spf2gb_df$GB_series[which(spf2gb_df$series == "RSLGOV")] <- "gRGOVSL"
 # Import greenbook data
 
 variable <- "gRGDP"
+spf_variable <- spf2gb_df$series[which(spf2gb_df$GB_series == variable)]
 
 import_filename <- paste0(clean_dir, "GreenBook_Row_Format.xlsx")
 greenbook_df <- read_xlsx(import_filename, sheet = variable, skip = 0)
@@ -71,6 +72,14 @@ greenbook_df <- as.data.frame(greenbook_df[order(greenbook_df$Date),])
 greenbook_df[,variable] <- NA
 greenbook_df[1:(nrow(greenbook_df)-2),variable] <- 
   greenbook_df[3:nrow(greenbook_df),paste0(variable, "B2")]
+
+
+
+# Import the SPF data (note that NGDP2 is the nowcast here)
+
+import_filename <- paste0(clean_dir, "GreenBook_Row_Format.xlsx")
+spf_df <- read_xlsx(import_filename, sheet = variable, skip = 0)
+
 
 
 ggplot(greenbook_df) + theme_bw() + 
