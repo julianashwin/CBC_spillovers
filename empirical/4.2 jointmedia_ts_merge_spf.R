@@ -29,16 +29,16 @@ export_dir <- "figures/"
 ############################# Import the topic proportions ############################# 
 
 # Import the weekly article data, averaged over articles
-import_filename = paste0(clean_dir, "articlemeans_jointtopics.csv")
+import_filename =  "data/articlemeans_jointtopics.csv"
 articlelevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
 # Import the minutes data estimated at the meeting level
-import_filename = paste0(clean_dir, "fedmeetingmeans_jointtopics.csv")
+import_filename = "data/fedmeetingmeans_jointtopics.csv"
 meetinglevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 # Import details for meetings to merge with 
-clean_filename = paste0(clean_dir, "fedminutes_long_clean.csv")
+clean_filename = "data/fedminutes_long_clean.csv"
 fedminutes.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 fedminutes.df$meet_date <- as.Date(fedminutes.df$meet_date)
 fedminutes.df$pub_date <- as.Date(fedminutes.df$pub_date)

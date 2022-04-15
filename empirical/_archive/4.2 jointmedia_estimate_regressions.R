@@ -23,20 +23,20 @@ export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 
 # Import the weekly article data, averaged over articles
-import_filename = paste(clean_dir, "CBC/articlemeans_jointtopics.csv", sep = "/")
+import_filename = "data/articlemeans_jointtopics.csv"
 articlelevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
 # Import the minutes data estimated at the meeting level
 # Import the text data
-clean_filename = paste(clean_dir, "CBC/fedminutes_long_clean.csv", sep = "/")
+clean_filename = "data/fedminutes_long_clean.csv"
 fedminutes.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 fedminutes.df$meet_date <- as.Date(fedminutes.df$meet_date)
 fedminutes.df$pub_date <- as.Date(fedminutes.df$pub_date)
 meeting.key <- unique(fedminutes.df[,c("meeting_id", "pub_date", "meet_date")])
 
-import_filename = paste(clean_dir, "CBC/fedmeetingmeans_jointtopics.csv", sep = "/")
+import_filename = "data/fedmeetingmeans_jointtopics.csv"
 meetinglevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
@@ -93,7 +93,7 @@ full_panel.df$period <- as.numeric(as.factor(full_panel.df$meet_date))
 full_panel.df <- pdata.frame(data.frame(full_panel.df), index = c("topic", "period"))
 
 
-clean_filename = paste(clean_dir, "CBC/mediaminutes_panel.csv", sep = "/")
+clean_filename = "data/mediaminutes_panel.csv"
 write.csv(full_panel.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 

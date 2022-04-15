@@ -16,6 +16,7 @@ require(wordcloud)
 require(plm)
 require(lfe)
 require(stargazer)
+require(dplyr)
 
 ### Define the directories where raw data is stored and clean will be saved
 clean_dir <- "~/Documents/DPhil/Clean_Data/"
@@ -23,20 +24,20 @@ export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 
 # Import the weekly article data, averaged over articles
-import_filename = paste(clean_dir, "CBC/articlemeans_jointtopics_long.csv", sep = "/")
+import_filename = "data/articlemeans_jointtopics_long.csv"
 articlelevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
 # Import the minutes data estimated at the meeting level
 # Import the text data
-clean_filename = paste(clean_dir, "CBC/fedminutes_long_clean.csv", sep = "/")
+clean_filename = "data/fedminutes_long_clean.csv"
 fedminutes.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 fedminutes.df$meet_date <- as.Date(fedminutes.df$meet_date)
 fedminutes.df$pub_date <- as.Date(fedminutes.df$pub_date)
 meeting.key <- unique(fedminutes.df[,c("meeting_id", "pub_date", "meet_date")])
 
-import_filename = paste(clean_dir, "CBC/fedmeetingmeans_jointtopics_long.csv", sep = "/")
+import_filename = "data/fedmeetingmeans_jointtopics_long.csv"
 meetinglevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
@@ -46,7 +47,8 @@ meeting.df <- merge(meetinglevel.means, meeting.key, by = "meeting_id", all.x = 
 meeting.df$meet_date <- as.Date(meeting.df$meet_date)
 meeting.df$pub_date <- as.Date(meeting.df$pub_date)
 
-ggplot(meeting.df, aes(x = meet_date)) + geom_line(aes(y = T2))
+ggplot(meeting.df, aes(x = meet_date)) + theme_bw() + 
+  geom_line(aes(y = T2))
 
 
 
@@ -111,14 +113,15 @@ full_panel.df$period <- as.numeric(as.factor(full_panel.df$meet_date))
 full_panel.df <- pdata.frame(data.frame(full_panel.df), index = c("topic", "period"))
 
 
-clean_filename = paste(clean_dir, "CBC/mediaminutes_panel_long.csv", sep = "/")
+clean_filename = "data/mediaminutes_panel_long.csv"
 write.csv(full_panel.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
 
 ### Standardise the variables
 colnames(full_panel.df)
-aggregate.panel <- select(full_panel.df, -meet_date, -pub_date, -period, -meeting_id)
+aggregate.panel <- full_panel.df[,which(!(names(full_panel.df) %in% 
+                                            c("meet_date", "pub_date", "period", "meeting_id")))]
 colnames(aggregate.panel)
 
 aggregate.panel <- aggregate.panel %>%
@@ -140,7 +143,7 @@ stand_panel.df$postpubarticle_value_std <- (stand_panel.df$postpubarticle_value 
                                               stand_panel.df$postpubarticle_value_mean)/stand_panel.df$postpubarticle_value_sd
 
 
-clean_filename = paste(clean_dir, "CBC/mediaminutes_panel_long_std.csv", sep = "/")
+clean_filename = "data/mediaminutes_panel_long_std.csv"
 write.csv(stand_panel.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
