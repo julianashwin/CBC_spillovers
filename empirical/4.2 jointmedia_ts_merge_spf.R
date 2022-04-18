@@ -32,7 +32,6 @@ export_dir <- "figures/"
 import_filename =  "data/articlemeans_jointtopics.csv"
 articlelevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
-
 # Import the minutes data estimated at the meeting level
 import_filename = "data/fedmeetingmeans_jointtopics.csv"
 meetinglevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
@@ -74,13 +73,13 @@ variablenames <- paste0(var_used, 1:k)
 
 meeting.df$quarter <- floor_date(meeting.df$meet_date, "quarter")
 meeting.quarterly <- meeting.df %>%
-  select(quarter, variablenames) %>%
+  dplyr::select(quarter, variablenames) %>%
   group_by(quarter) %>%
   summarise_all(mean)
 
 pre_articles.df$quarter <- floor_date(pre_articles.df$meet_date, "quarter")
 articles.quarterly <- pre_articles.df %>%
-  select(quarter, variablenames) %>%
+  dplyr::select(quarter, variablenames) %>%
   group_by(quarter) %>%
   summarise_all(mean)
 
@@ -367,18 +366,15 @@ total.panel$fed_std <- (total.panel$fed - total.panel$fed_mean)/total.panel$fed_
 total.panel$news_std <- (total.panel$news - total.panel$news_mean)/total.panel$news_sd
 
 
+
+clean_filename = "data/topics_forecasts_panel.csv"
+write.csv(total.panel, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+total.panel <- read.csv("data/topics_forecasts_panel_long.csv", stringsAsFactors = FALSE)
+
 ### Convert to 
 total.panel$quarter <- as.Date(total.panel$quarter)
 total.panel$period <- as.numeric(as.factor(total.panel$quarter))
 total.panel <- pdata.frame(data.frame(total.panel), index = c("series", "period"))
-
-
-
-
-clean_filename = paste(clean_dir, "topics_forecasts_panel.csv", sep = "/")
-write.csv(total.panel, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-
-
 
 
 ############################# Cross-correlation matrix for the series ############################# 
@@ -567,16 +563,16 @@ model <- felm(dispersion ~ plm::lag(fed, 0:1) + plm::lag(news, 0:1) + plm::lag(d
 summary(model)
 model2 <- felm(dispersion ~ plm::lag(fed, 0:1) + plm::lag(news, 0:1) + plm::lag(dispersion, 1:3) | series + quarter, data = total.panel)
 summary(model2)
-model2 <- felm(dispersion ~ plm::lag(fed, -1:1) + plm::lag(news, -1:1) + plm::lag(dispersion, 1:3) | series + period, data = total.panel)
+model2 <- felm(dispersion ~ plm::lag(fed, 0:1) + plm::lag(news, 0:1) + plm::lag(dispersion, 1:3) | series + period, data = total.panel)
 summary(model2)
-model2_std <- felm(dispersion_std ~ plm::lag(fed_std, -1:1) + plm::lag(news_std, -1:1) + plm::lag(dispersion_std, 1:3) | series + period, data = total.panel)
+model2_std <- felm(dispersion_std ~ plm::lag(fed_std, 0:1) + plm::lag(news_std, 0:1) + plm::lag(dispersion_std, 1:3) | series + period, data = total.panel)
 summary(model2_std)
 
 
 # Fed topics as dependent variable
 model3 <- felm(fed ~ plm::lag(dispersion, 0) | series, data = total.panel)
 summary(model3)
-model3_std <- felm(fed_std ~ plm::lag(dispersion_std, 0) | series, data = total.panel)
+model3_std <- felm(fed_std ~ plm::lag(dispersion_std, 0) + plm::lag(news_std, 0) | series, data = total.panel)
 summary(model3_std)
 model <- felm(fed ~ plm::lag(dispersion, -1:1) + plm::lag(news, -1:1) | series, data = total.panel)
 summary(model)
@@ -584,9 +580,10 @@ model <- felm(fed ~ plm::lag(dispersion, 0:1) + plm::lag(news, 0:1) | series, da
 summary(model)
 model <- felm(fed ~ plm::lag(dispersion, 0:1) + plm::lag(news, 0:1) + plm::lag(fed, 1) | series, data = total.panel)
 summary(model)
-model4 <- felm(fed ~ plm::lag(dispersion, -1:1)  + plm::lag(fed, 1:3) | series + quarter, data = total.panel)
+model4 <- felm(fed ~ plm::lag(dispersion, 0:1)  + plm::lag(fed, 1:3) | series + quarter, data = total.panel)
 summary(model4)
-model4_std <- felm(fed_std ~ plm::lag(dispersion_std, -1:1) + plm::lag(fed_std, 1:3) | series + quarter, data = total.panel)
+model4_std <- felm(fed_std ~ plm::lag(dispersion_std, -1:1) +  plm::lag(news_std, -1:1) +
+                     plm::lag(fed_std, 1:3) | series + quarter, data = total.panel)
 summary(model4_std)
 
 # NYT articles as dependent variable
