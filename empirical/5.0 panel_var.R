@@ -14,9 +14,9 @@ export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 ### Import the SPF-text data panel
 
-import_filename <- paste(clean_dir, "topics_forecasts_panel.csv", sep = "/")
+import_filename <- "data/jointmedia_spf_gb_panel.csv"
 total.panel <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-total.panel <- pdata.frame(total.panel, index = c("series", "quarter"))
+total.panel <- pdata.frame(total.panel, index = c("series", "period"))
 
 
 ### Import the media and minutes panel
@@ -147,8 +147,8 @@ pvar_model <-
   pvarfeols(dependent_vars = c("fed", "news", "dispersion"),
             lags = 3,
             transformation = "demean",
-            data = total.panel,
-            panel_identifier= c("series", "quarter"))
+            data = data.frame(total.panel),
+            panel_identifier= c("series", "period"))
 summary(pvar_model)
 
 

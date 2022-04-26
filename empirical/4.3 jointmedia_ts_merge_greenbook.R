@@ -34,7 +34,8 @@ panel_df$quarter <- as.Date(panel_df$quarter)
 ggplot(panel_df[which(panel_df$series == "CPI"),]) + theme_bw() + 
   geom_line(aes(x = quarter, y = fed_std, color = "Fed")) + 
   geom_line(aes(x = quarter, y = news_std, color = "NYT")) + 
-  geom_line(aes(x = quarter, y = dispersion_std, color = "disp"))
+  geom_line(aes(x = quarter, y = dispersion_std, color = "disp")) + 
+  geom_line(aes(x = quarter, y = f1_dispersion_std, color = "f1_disp"))
 
 # Define correspondence between SPF and Greenbook variables
 spf2gb_df <- data.frame(series = unique(panel_df$series))
@@ -44,6 +45,7 @@ spf2gb_df$topic <- 0
 spf2gb_df[which(spf2gb_df$series == "NGDP"), c("GB_series", "version", "topic")] <- c("gNGDP",2, 20)
 spf2gb_df[which(spf2gb_df$series == "RGDP"), c("GB_series", "version", "topic")] <- c("gRGDP",2, 20)
 spf2gb_df[which(spf2gb_df$series == "CPI"), c("GB_series", "version", "topic")] <- c("gPCPI",1, 9)
+spf2gb_df[which(spf2gb_df$series == "TBILL"), c("GB_series", "version", "topic")] <- c(NA,1, 24)
 spf2gb_df[which(spf2gb_df$series == "UNEMP"), c("GB_series", "version", "topic")] <- c("UNEMP",1, 16)
 spf2gb_df[which(spf2gb_df$series == "EMP"), c("GB_series", "version", "topic")] <- c("UNEMP",1, 16)
 spf2gb_df[which(spf2gb_df$series == "CPROF"), c("GB_series", "version", "topic")] <- c(NA,1, 23)
@@ -277,9 +279,9 @@ ggsave("figures/nowcasts/all_updates.pdf", width = 8, height = 6)
 
 # Merge nowcasts with the topics and dispersion measures
 df <- panel_df[,c("series", "quarter", "fed", "news",  "fed_std", "news_std", 
-                  "dispersion", "dispersion_std")]
+                  "dispersion", "f1_dispersion", "dispersion_std", "f1_dispersion_std")]
 df$quarter <- as.Date(df$quarter)
-nowcasts_df <- nowcasts_df[,c("series", "quarter", "variable_act", "GB_nowcast", "SPF_nowcast",
+nowcasts_df <- nowcasts_df[,c("series", "topic", "quarter", "variable_act", "GB_nowcast", "SPF_nowcast",
                               "GB_forecast1", "SPF_forecast1",
                               "GB_now_error_abs", "SPF_now_error_abs", "GB_now_error_abs_std", "SPF_now_error_abs_std",
                               "GB_SPF_now_gap_abs", "GB_SPF_f1_gap_abs", "GB_SPF_now_gap_abs_std", "GB_SPF_f1_gap_abs_std",
@@ -301,6 +303,9 @@ cor.test(df$dispersion_std, df$SPF_update_abs)
 model1_std <- felm(dispersion_std ~ plm::lag(fed_std, 0) + plm::lag(news_std, 0) | series, data = df)
 summary(model1_std)
 model2_std <- felm(dispersion_std ~ plm::lag(fed_std, 0:1) + plm::lag(news_std, 0:1) + 
+                     plm::lag(dispersion_std, 1:3) | series + period, data = df)
+summary(model2_std)
+model2_std <- felm(f1_dispersion_std ~ plm::lag(fed_std, 0:1) + plm::lag(news_std, 0:1) + 
                      plm::lag(dispersion_std, 1:3) | series + period, data = df)
 summary(model2_std)
 
@@ -352,27 +357,6 @@ summary(model)
 write.csv(df, "data/jointmedia_spf_gb_panel.csv", row.names = FALSE)
 
 
-ggplot(df, aes(x=quarter)) + theme_bw() + 
-  facet_wrap(series~., nrow = 3, scales = "free") +
-  geom_line(aes(y = GB_error_abs_std, color = "GB SPF gap"), linetype = "dashed") +
-  geom_line(aes(y = fed_std, color = "Fed"), linetype = "dashed") +
-  geom_line(aes(y = dispersion_std, color = "SPF dispersion"), linetype = "dashed") +
-  xlab("Date") + ylab("")
-
-
-
-
-ggplot(df[df$series == "HOUSING",], aes(x=quarter)) + theme_bw() + 
-  geom_line(aes(y = GB_error_abs, color = "GB SPF gap")) +
-  geom_line(aes(y = fed_std, color = "Fed"), linetype = "dashed") +
-  geom_line(aes(y = dispersion_std, color = "SPF dispersion"), linetype = "dashed") +
-  xlab("Date") + ylab("")
-
-
-
-
-
-ggsave("figures/nowcasts/all_gaps.pdf", width = 8, height = 6)
 
 
 

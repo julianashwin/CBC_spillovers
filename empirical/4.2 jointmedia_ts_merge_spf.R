@@ -90,6 +90,10 @@ articles.quarterly <- articles.quarterly[,c("quarter", names2)]
 topics.df <- merge(meeting.quarterly, articles.quarterly, by = "quarter", all.x = TRUE)
 total.df <- topics.df
 
+clean_filename = "data/joint_topics_quarterly.csv"
+write.csv(topics.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+
+
 "
 code <- 'NGDP'
 descrip <- 'Growth'
@@ -113,6 +117,8 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
   dispersion.df <- read_xlsx(import_filename, sheet <- code, skip = 9)
   if (annual == FALSE){
     command <- paste0("dispersion.df$",code,"_dispersion <- dispersion.df$`",code,"_D",disp_measure,"(T)`")
+    eval(parse(text=command))
+    command <- paste0("dispersion.df$",code,"_f1_dispersion <- dispersion.df$`",code,"_D",disp_measure,"(T+1)`")
   } else{
     command <- paste0("dispersion.df$",code,"_dispersion <- dispersion.df$`",code,"_D",disp_measure,"`")
   }
@@ -125,7 +131,8 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
   eval(parse(text=command))
   command <- paste0("dispersion.df$", code,"_dispersion <- as.numeric(dispersion.df$", code, "_dispersion)")
   eval(parse(text=command))
-  
+  command <- paste0("dispersion.df$", code,"_f1_dispersion <- as.numeric(dispersion.df$", code, "_f1_dispersion)")
+  eval(parse(text=command))
   # Convert dates to quarterly 
   dispersion.df$Date <- dispersion.df$`Survey_Date(T)`
   year <- str_sub(dispersion.df$Date, 1,4)
@@ -146,7 +153,7 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
   }
   
   # Keep only the date and dispersion measure
-  command <- paste0("dispersion.df <- select(dispersion.df, c(quarter, ", code,"_dispersion))")
+  command <- paste0("dispersion.df <- select(dispersion.df, c(quarter, ", code,"_dispersion, ",code,"_f1_dispersion))")
   eval(parse(text=command))
   
   # Merge with the topic data
@@ -154,45 +161,15 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
   
   # Calculate mean and variance for normalisation
   command <- paste0("exp.mean <- mean(plot.df$", code, "_dispersion, na.rm = TRUE)
-                    exp.var <- sd(plot.df$",code,"_dispersion, na.rm = TRUE)")
+                    exp.var <- sd(plot.df$",code,"_dispersion, na.rm = TRUE)
+                    expf.mean <- mean(plot.df$", code, "_f1_dispersion, na.rm = TRUE)
+                    expf.var <- sd(plot.df$",code,"_f1_dispersion, na.rm = TRUE)")
   eval(parse(text=command))
   command <- paste0("meeting.mean <- mean(plot.df$T", topic, ", na.rm = TRUE)
                     meeting.var <- sd(plot.df$T",topic, ", na.rm = TRUE)
                     article.mean <- mean(plot.df$T", topic,"_news, na.rm = TRUE)
                     article.var <- sd(plot.df$T", topic, "_news, na.rm = TRUE)")
   eval(parse(text=command))
-  
-  # Plot CPI nowcast dispersion and quarterly topic propotions
-  if (fed){
-    command <- paste0("
-                    ggplot(plot.df, aes(x = quarter)) + theme_bw() +
-                      scale_color_manual(\"Legend\",
-                      values = c(\"SPF ", code, " dispersion\" = \"darkturquoise\", \"Fed minutes\" = \"blue3\", 
-                      \"NYT articles\" = \"dimgray\")) +
-                      geom_line(aes(y = (",code, "_dispersion - exp.mean)/exp.var, color = \"SPF ", code, " dispersion\")) +
-                      geom_line(aes(y = (T", topic, " - meeting.mean)/meeting.var, color = \"Fed minutes\")) +
-                      geom_line(aes(y = (T", topic, "_news - article.mean)/article.var, color = \"NYT articles\")) +
-                      xlab(\"Quarter\") +
-                      ylab(\"Normalised value\") + 
-                      ggtitle(\"", descrip,  " attention and expectation dispersion\")
-                      ggsave(paste0(export_dir, \"SPF_topics/", code, "disp_topic", topic, ".png\"),
-                        width = 6,height = 4)")
-    eval(parse(text=command))
-  } else {
-    command <- paste0("
-                    ggplot(plot.df, aes(x = quarter)) + theme_bw() +
-                      scale_color_manual(\"Legend\",
-                      values = c(\"SPF ", code, " dispersion\" = \"darkturquoise\", \"Fed minutes\" = \"blue3\", 
-                      \"NYT articles\" = \"dimgray\")) +
-                      geom_line(aes(y = (",code, "_dispersion - exp.mean)/exp.var, color = \"SPF ", code, " dispersion\")) +
-                      geom_line(aes(y = (T", topic, "_news - article.mean)/article.var, color = \"NYT articles\")) +
-                      xlab(\"Quarter\") +
-                      ylab(\"Normalised value\") + 
-                      ggtitle(\"", descrip,  " attention and expectation dispersion\")
-                      ggsave(paste0(export_dir, \"SPF_topics/", code, "disp_topic", topic, ".png\"),
-                        width = 6,height = 4)")
-    eval(parse(text=command))
-  }
   
   
   if (paste0(code, "_dispersion") %in% colnames(total.df)){
@@ -201,7 +178,8 @@ plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.
     
     command <- paste0("merged.df$", code, "_dispersion <- plot.df$",code,"_dispersion")
     eval(parse(text=command))
-    
+    command <- paste0("merged.df$", code, "_f1_dispersion <- plot.df$",code,"_f1_dispersion")
+    eval(parse(text=command))
     # Name a topic
     command <- paste0("merged.df$", code, "_topic_fed <- merged.df$T",topic)
     eval(parse(text=command))
@@ -310,12 +288,6 @@ total.df <- plot_topicdisp(code = "RSLGOV", descrip = "State", topic = 3, topics
 cor.test(total.df$RSLGOV_dispersion, total.df$RSLGOV_topic_news)
 cor.test(total.df$RSLGOV_dispersion, total.df$RSLGOV_topic_fed)
 
-# Equities
-total.df <- plot_topicdisp(code = "STOCK10", descrip = "Equities", topic = 18, topics.df = topics.df, 
-                           disp_measure = 1,total.df = total.df, annual = TRUE)
-cor.test(total.df$STOCK10_dispersion, total.df$STOCK10_topic_news)
-cor.test(total.df$STOCK10_dispersion, total.df$STOCK10_topic_fed)
-
 
 # Test that GDP and CPI are better fits for their respective topics
 cor.test(total.df$NGDP_dispersion, total.df$CPI_topic_fed)
@@ -342,7 +314,7 @@ for (s in series){
 }
 
 total.panel$type <- NA
-for (t in c("dispersion", "fed", "news")){
+for (t in c("dispersion", "f1_dispersion", "fed", "news")){
   total.panel[which(str_detect(total.panel$topic, t)),"type"] <- t
 }
 
@@ -362,6 +334,7 @@ total_means <- total.panel %>%
 
 total.panel <- merge(total.panel, total_means, by = "series")
 total.panel$dispersion_std <- (total.panel$dispersion - total.panel$dispersion_mean)/total.panel$dispersion_sd
+total.panel$f1_dispersion_std <- (total.panel$f1_dispersion - total.panel$f1_dispersion_mean)/total.panel$f1_dispersion_sd
 total.panel$fed_std <- (total.panel$fed - total.panel$fed_mean)/total.panel$fed_sd
 total.panel$news_std <- (total.panel$news - total.panel$news_mean)/total.panel$news_sd
 

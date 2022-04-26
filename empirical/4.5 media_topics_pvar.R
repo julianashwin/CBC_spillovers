@@ -29,7 +29,7 @@ clean_dir <- "~/Documents/DPhil/Clean_Data/"
 export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 
-import_filename = paste0(clean_dir, "CBC/topics_forecasts_panel_long.csv")
+import_filename = "data/jointmedia_spf_gb_panel.csv"
 total.df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 total.panel <- pdata.frame(total.df, index = c("series", "period"))
