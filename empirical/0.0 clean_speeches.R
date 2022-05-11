@@ -9,7 +9,11 @@ require(stringr)
 require(tm)
 require(slam)
 require(htm2txt)
+require(lubridate)
 
+
+
+############### Speeches ############### 
 
 
 ### Define the directories where raw data is stored and clean will be saved
@@ -171,17 +175,15 @@ for (ii in 1:length(html_new_files)){
 
 # Combine new and old
 
-speeches_df <- rbind(speeches_pre06_df, speeches_new_df)
+speeches_df <- rbind(speeches_pre06_df, speeches_06onward_df)
 rownames(speeches_df) <- NULL
 
 
-
-
 ### Separate into paragraphs
-speeches_para_df <- data.frame(matrix(NA, nrow = 0, ncol = 4))
-names(speeches_para_df) <- c("date", "filename", "paragraph", "nchar")
+speeches_para_df <- data.frame(matrix(NA, nrow = 0, ncol = 5))
+names(speeches_para_df) <- c("unique_id", "date", "filename", "paragraph", "nchar")
 
-pb = txtProgressBar(min = 1, max = length(speeches_df), initial = 1) 
+pb = txtProgressBar(min = 1, max = nrow(speeches_df), initial = 1) 
 for (ii in 1:nrow(speeches_df)){
   
   row <- speeches_df[ii,]
@@ -189,34 +191,71 @@ for (ii in 1:nrow(speeches_df)){
   paras <- paras[which(nchar(paras) > 1)]
   N <- length(paras)
   
-  speech_df <- data.frame(date = rep(row$date,N),filename = rep(row$filename,N), 
-                          paragraph = paras, nchar = NA)
+  speech_df <- data.frame(unique_id = NA, speech_id = NA, date = rep(row$date,N),
+                          filename = rep(row$filename,N), paragraph = paras, nchar = NA)
   
   # Remove extra whitespace
   speech_df$paragraph <- str_squish(speech_df$paragraph)
+  speech_df$nchar <- nchar(speech_df$paragraph)
   speech_df <- speech_df[which(nchar(speech_df$paragraph) > 1),]
   
   # Remove content below the "Return to top" point
-  end_point <- which(str_detect(speech_df$paragraph, "Return to top" ))
-  speech_df <- speech_df[which(1:nrow(speech_df) < end_point),]
-  
+  end_point <- which(str_detect(speech_df$paragraph, "Return to top|Return to text"  ))
+  if (length(end_point) == 1 ){
+    if (nrow(speech_df) < end_point){
+      print(paste("Problem with", ii))
+    } else {
+      speech_df <- speech_df[which(1:nrow(speech_df) < end_point),]
+    }
+  }
   # remove any paragraphs that don't include alphabet characters
   speech_df <- speech_df[which(str_detect(speech_df$paragraph, "[a-z]") ),]
-  
   # remove paragraphs with three or fewer words
   speech_df <- speech_df[which(str_count(speech_df$paragraph, " ") >= 4 ),]
-  
   # Append
   speeches_para_df <- rbind(speeches_para_df, speech_df)
   
   setTxtProgressBar(pb,ii)
 }
-  
+
+# Add a unique id per paragraph
+speeches_para_df$unique_id <- paste0("SPEECHp_", 1:nrow(speeches_para_df))
+# Add a unique id per speech
+speeches_para_df$speech_id <- paste0("SPEECH_", as.numeric(as.factor(speeches_para_df$filename)))
+# Add quarter
+speeches_para_df$date <- as.Date(speeches_para_df$date)
+speeches_para_df$quarter <- floor_date(speeches_para_df$date, "quarter")
+
+## Add an LM sentiment measure (loop else vector memory is exhausted)
+speeches_para_df$sentiment <- NA
+pb = txtProgressBar(min = 1, max = nrow(speeches_para_df), initial = 1) 
+for (ii in 1:nrow(speeches_para_df)){
+  para <- speeches_para_df$paragraph[ii]
+  sentiment <- analyzeSentiment(para,rules=list("SentimentLM"=list(ruleSentiment,loadDictionaryLM())))
+  speeches_para_df$sentiment[ii] <- sentiment[1,1]
+  setTxtProgressBar(pb,ii)
+}
+
+speeches_para_df$sentiment[which(is.na(speeches_para_df$sentiment))] <- 0
+
+sent_df <- aggregate(speeches_para_df[,c("sentiment")], FUN = mean, by = 
+                       list(quarter = speeches_para_df$quarter))
+sent_df$quarter <- as.Date(sent_df$quarter)
+ggplot(sent_df) + theme_bw() + 
+  geom_line(aes(x = quarter, y = x))
 
 
 
-write.csv(speeches_df, "data/clean_text/fedspeeches_para_df.csv", row.names = F)
+speeches_para_df <- speeches_para_df[order(speeches_para_df$date),
+                                     c("unique_id","speech_id", "date", "quarter", "filename", 
+                                       "paragraph", "nchar", "sentiment")]
 
 
+write.csv(speeches_para_df, "data/clean_text/fedspeeches_all.csv", row.names = F)
+#speeches_para_df <- read.csv( "data/clean_text/fedspeeches_all.csv", stringsAsFactors = F)
+
+
+
+############### End ############### 
 
 
