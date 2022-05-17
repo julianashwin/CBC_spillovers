@@ -167,20 +167,33 @@ print(paste("Dimensions of nyt.dtm are", dim(nyt.dtm)[1], "documents and",
 
 
 ### Export the prepped text data
-
+# Minutes
 names(fedminutes_clean)
 fedminutes_export <- fedminutes_clean[,c("unique_id", "meeting_id", "quarter", "meet_date", 
                                          "pub_date", "paragraph_clean", "wordcount", "sentiment")]
+write.csv(fedminutes_export, paste0(clean_dir, "fedminutes_clean.csv"), 
+          fileEncoding = "utf-8", row.names = FALSE)
 
+# Speeches
 names(fedspeeches_clean)
 fedspeeches_export <- fedspeeches_clean[,c("unique_id", "speech_id", "quarter", "date", 
                                          "paragraph_clean", "wordcount", "sentiment")]
+write.csv(fedspeeches_export, paste0(clean_dir, "fedspeeches_clean.csv"), 
+          fileEncoding = "utf-8", row.names = FALSE)
+
+# Articles
 names(nyt_clean)
 nyt_export <- nyt_clean[,c("unique_id", "quarter", "date", "subsequent_meeting", "recent_meeting", 
                            "subsequent_pub", "recent_pub", "subsequent_speech", "recent_speech",
                            "paragraph_clean", "wordcount", "sentiment")]
-write.csv(nyt_export[1:round(nrow(nyt_export)/2),], paste0(clean_dir, "NYT_clean_1.csv"), fileEncoding = "utf-8", row.names = FALSE)
-write.csv(nyt_export[round(nrow(nyt_export)/2)+11:nrow(nyt_export),], paste0(clean_dir, "NYT_clean_2.csv"), fileEncoding = "utf-8", row.names = FALSE)
+
+write.csv(nyt_export[nyt_export$date < "2000",], paste0(clean_dir, "NYT_clean_90s.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(nyt_export[nyt_export$date >= "2000" & nyt_export$date < "2010",], 
+          paste0(clean_dir, "NYT_clean_00s.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(nyt_export[nyt_export$date >= "2010",], paste0(clean_dir, "NYT_clean_10a.csv"), fileEncoding = "utf-8", row.names = FALSE)
+# Save full version to icloud for safe-keeping
+write.csv(nyt_export, "~/Documents/DPhil/Clean_Data/New_York_Times/econ_news/nyt_articles_matched.csv", 
+          fileEncoding = "utf-8", row.names = FALSE)
 # nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 

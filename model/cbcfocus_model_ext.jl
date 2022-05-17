@@ -319,8 +319,7 @@ colvars = [:ϵ_b1, :ϵ_b2, :ϵ_c1, :ϵ_c2, :η_b1, :η_b2, :η_c1, :η_c2,
     :a_b1, :a_b2, :a_c1, :a_c2, :μ_b1, :μ_b2, :Σ_b1, :Σ_b2,
      :μ_c1, :μ_c2, :Σ_c1, :Σ_c2, :ω_b11, :ω_b12, :ω_b21, :ω_b22]
 ## Create df
-sim_df = DataFrame(repeat([0.],100000, length(colvars)))
-rename!(sim_df, colvars)
+sim_df = DataFrame(repeat([0.],100000, length(colvars)), colvars)
 ## Simulate
 par = reset_par()
 sim_df = simulate_model(par, sim_df)
