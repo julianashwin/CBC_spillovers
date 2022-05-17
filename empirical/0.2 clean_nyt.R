@@ -163,12 +163,12 @@ nyt_relevant <- merge(nyt_relevant, nyt_prespeech_agg, by = "unique_id", all.x =
 nyt_relevant <- merge(nyt_relevant, nyt_postspeech_agg, by = "unique_id", all.x = TRUE)
 
 nyt_relevant$date <- nyt_relevant$date_num
-nyt_relevant <- nyt_relevant[order(nyt_relevant$date),
+nyt_export <- nyt_relevant[order(nyt_relevant$date),
                              c("unique_id", "date", "quarter",  "headline", "main_text",
                                 "subsequent_meeting", "recent_meeting", "subsequent_pub",
-                                "recent_pub", "subsequent_speech", "recent_speech")]
+                                "recent_pub", "subsequent_speech", "recent_speech", "sentiment")]
 
 # Write the clean Federal Reserve minutes to a file
 clean_filename = "~/Documents/DPhil/Clean_Data/New_York_Times/econ_news/nyt_articles_matched.csv"
-write.csv(nyt_relevant, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+write.csv(nyt_export, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 

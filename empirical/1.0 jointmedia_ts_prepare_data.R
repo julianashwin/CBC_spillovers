@@ -10,124 +10,106 @@ clean_dir <- "data/clean_text/"
 raw_dir <- "data/raw_text/"
 
 
-# Read the clean Federal Reserve minutes to a file
-clean_filename = paste0(clean_dir, "fedminutes_clean.csv")
+# Import the clean Federal Reserve minutes
+clean_filename = paste0(clean_dir, "fedminutes_all.csv")
 fedminutes.df <- read.csv(clean_filename, stringsAsFactors = FALSE)
 
-
-# Read the clean Federal Reserve minutes to a file
+# Import the clean Federal Reserve minutes
 clean_filename = paste0(clean_dir, "fedspeeches_all.csv")
 fedspeeches.df <- read.csv(clean_filename, stringsAsFactors = FALSE)
 
-
-
-
-
-
-
-
-for (i in 1:nrow(meeting.df)){
-  # Meeting detail
-  meeting_id <- meeting.df$meeting_id[i]
-  meet_date <- meeting.df$meet_date[i]
-  pub_date <- meeting.df$pub_date[i]
-  print(paste("Finding relevant articles for meeting", meeting.df$meeting_id[i]))
-  
-  pre_meet = meet_date - 6
-  post_meet = meet_date + 6
-  
-  pre_pub = pub_date - 6
-  post_pub = pub_date + 6
-  
-  
-  ### Around the meeting
-  # Identify those articles in the week leading up to the meeting
-  premeet_articles <- nyt.df[which(nyt.df$date_num < meet_date & 
-                                     nyt.df$date_num >= pre_meet), ]
-  premeet_articles$subsequent_meeting <- meeting_id
-  # Identify those articles in the week following the publication of the minutes
-  postmeet_articles <- nyt.df[which(nyt.df$date_num > meet_date & 
-                                      nyt.df$date_num <= post_meet), ]
-  postmeet_articles$recent_meeting <- meeting_id
-  
-  
-  ### Around the publication
-  # Identify those articles in the week leading up to the meeting
-  prepub_articles <- nyt.df[which(nyt.df$date_num < pub_date & 
-                                    nyt.df$date_num >= pre_pub), ]
-  prepub_articles$subsequent_pub <- meeting_id
-  
-  # Identify those articles in the week following the publication of the minutes
-  postpub_articles <- nyt.df[which(nyt.df$date_num >= pub_date & 
-                                     nyt.df$date_num <= post_pub), ]
-  postpub_articles$recent_pub <- meeting_id
-  
-  
-  nyt_premeeting <- rbind(nyt_premeeting, premeet_articles)
-  nyt_postmeeting <- rbind(nyt_postmeeting, postmeet_articles)
-  
-  nyt_prepub <- rbind(nyt_prepub, prepub_articles)
-  nyt_postpub <- rbind(nyt_postpub, postpub_articles)
-}
-
-
-# Merge the pre and post, recognising that some may appear in both
-nyt_relevant <- merge(nyt_postmeeting, nyt_premeeting, 
-                      by = c("unique_id", "date_num", "quarter", "headline", "main_text", "nchar"), 
-                      all.x = TRUE, all.y = TRUE)
-nyt_relevant <- merge(nyt_relevant, nyt_postpub, 
-                      by = c("unique_id", "date_num", "quarter", "headline", "main_text", "nchar"), 
-                      all.x = TRUE, all.y = TRUE)
-nyt_relevant <- merge(nyt_relevant, nyt_prepub, 
-                      by = c("unique_id", "date_num", "quarter", "headline", "main_text", "nchar"), 
-                      all.x = TRUE, all.y = TRUE)
-
+# Import the clean NYT articles
+clean_filename = "~/Documents/DPhil/Clean_Data/New_York_Times/econ_news/nyt_articles_matched.csv"
+nyt.df <- read.csv(clean_filename, stringsAsFactors = FALSE)
 
 
 
 ############################# Some basic cleaning ############################# 
 
 
-### For the Fed minutes corpus
 # The removePunctuation function seems to be unreliable, so use gsub to remove some problems first
-fedminutes.df$paragraph <- gsub("-", " ", fedminutes.df$paragraph)
-fedminutes.df$paragraph <- gsub("/'", "", fedminutes.df$paragraph)
-fedminutes.df$paragraph <- gsub("’", "", fedminutes.df$paragraph)
-fedminutes.df$paragraph <- gsub("‘", "", fedminutes.df$paragraph)
-fedminutes.df$paragraph <- gsub("“", "", fedminutes.df$paragraph)
-fedminutes.df$paragraph <- gsub("”", "", fedminutes.df$paragraph)
-fedminutes.df$paragraph <- gsub("€", " ", fedminutes.df$paragraph)
-fedminutes.df$paragraph <- gsub(",", " ", fedminutes.df$paragraph)
-fedminutes.df$paragraph <- gsub(":", " ", fedminutes.df$paragraph)
+fedminutes.df$paragraph <- gsub("-|/'|/'|’|‘|“|”|€|,|:", " ", fedminutes.df$paragraph)
+fedspeeches.df$paragraph <- gsub("-|/'|/'|’|‘|“|”|€|,|:", " ", fedspeeches.df$paragraph)
+nyt.df$main_text <- gsub("-|/'|/'|’|‘|“|”|€|,|:", " ", nyt.df$main_text)
+
+# Squish and update nchar
+fedminutes.df$paragraph <- str_squish(fedminutes.df$paragraph)
+fedminutes.df$nchar <- nchar(fedminutes.df$paragraph)
+fedspeeches.df$paragraph <- str_squish(fedspeeches.df$paragraph)
+fedspeeches.df$nchar <- nchar(fedspeeches.df$paragraph)
+nyt.df$main_text <- str_squish(nyt.df$main_text)
+nyt.df$nchar <- nchar(nyt.df$main_text)
 
 fedminutes.corpus <- Corpus(VectorSource(unlist(fedminutes.df[, "paragraph"])))
-# Preliminary cleaning
-inspect(fedminutes.corpus[[250]])
+fedspeeches.corpus <- Corpus(VectorSource(unlist(fedspeeches.df[, "paragraph"])))
+nyt.corpus <- Corpus(VectorSource(unlist(nyt.df[, "main_text"])))
+
+### Preliminary cleaning
+# stripWhitespace
 fedminutes.corpus <- tm_map(fedminutes.corpus, stripWhitespace)
-inspect(fedminutes.corpus[[250]])
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, stripWhitespace)
+nyt.corpus <- tm_map(nyt.corpus, stripWhitespace)
+# Remove numbers
 fedminutes.corpus <- tm_map(fedminutes.corpus, removeNumbers)
-inspect(fedminutes.corpus[[250]])
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, removeNumbers)
+nyt.corpus <- tm_map(nyt.corpus, removeNumbers)
+# Remove punctuation
 fedminutes.corpus <- tm_map(fedminutes.corpus, removePunctuation)
-inspect(fedminutes.corpus[[250]])
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, removePunctuation)
+nyt.corpus <- tm_map(nyt.corpus, removePunctuation)
+# Lower case
 fedminutes.corpus <- tm_map(fedminutes.corpus, content_transformer(tolower))
-inspect(fedminutes.corpus[[250]])
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, content_transformer(tolower))
+nyt.corpus <- tm_map(nyt.corpus, content_transformer(tolower))
+# Remove stopwords
 fedminutes.corpus <- tm_map(fedminutes.corpus, removeWords, stopwords("english"))
-inspect(fedminutes.corpus[[250]])
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, removeWords, stopwords("english"))
+nyt.corpus <- tm_map(nyt.corpus, removeWords, stopwords("english"))
+# Stemming
 fedminutes.corpus <-  tm_map(fedminutes.corpus, stemDocument)
-inspect(fedminutes.corpus[[250]])
+fedspeeches.corpus <-  tm_map(fedspeeches.corpus, stemDocument)
+nyt.corpus <-  tm_map(nyt.corpus, stemDocument)
+# stripWhitespace again
 fedminutes.corpus <- tm_map(fedminutes.corpus, stripWhitespace)
-inspect(fedminutes.corpus[[250]])
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, stripWhitespace)
+nyt.corpus <- tm_map(nyt.corpus, stripWhitespace)
+
 
 # Remove months and seasons as they might introduce artificial co-movement
 months <- c("januari", "februari", "march", "april", "may", "june", "july", "juli", "julyaugust", "august",
             "septemb", "octob", "novemb", "decemb")
 fedminutes.corpus <- tm_map(fedminutes.corpus, removeWords, months)
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, removeWords, months)
+nyt.corpus <- tm_map(nyt.corpus, removeWords, months)
+
 seasons <- c("summer", "autumn", "spring", "winter")
 fedminutes.corpus <- tm_map(fedminutes.corpus, removeWords, seasons)
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, removeWords, seasons)
+nyt.corpus <- tm_map(nyt.corpus, removeWords, seasons)
 
+# Add cleaned text as new column
 fedminutes.df$paragraph_clean <- sapply(fedminutes.corpus, as.character)
-fedminutes.df$paragraph_clean <- str_trim(fedminutes.df$paragraph_clean)
+fedminutes.df$paragraph_clean <- str_squish(fedminutes.df$paragraph_clean)
 fedminutes.df[250, c("paragraph", "paragraph_clean")]
+fedspeeches.df$paragraph_clean <- sapply(fedspeeches.corpus, as.character)
+fedspeeches.df$paragraph_clean <- str_squish(fedspeeches.df$paragraph_clean)
+fedspeeches.df[250, c("paragraph", "paragraph_clean")]
+nyt.df$paragraph_clean <- sapply(nyt.corpus, as.character)
+nyt.df$paragraph_clean <- str_squish(nyt.df$paragraph_clean)
+nyt.df[250, c("main_text", "paragraph_clean")]
+
+
+# Remove any remaining empty paragraphs
+fedminutes.df$nchar_clean <- nchar(fedminutes.df$paragraph_clean)
+fedspeeches.df$nchar_clean <- nchar(fedspeeches.df$paragraph_clean)
+nyt.df$nchar_clean <- nchar(nyt.df$paragraph_clean)
+
+fedminutes_clean <- fedminutes.df[which(fedminutes.df$nchar_clean > 0),]
+fedspeeches_clean <- fedspeeches.df[which(fedspeeches.df$nchar_clean > 0),]
+nyt_clean <- nyt.df[which(nyt.df$nchar_clean > 0),]
+
+# Redo the corpora
+fedminutes.corpus <- Corpus(VectorSource(unlist(fedminutes_clean[, "paragraph_clean"])))
 
 
 # Then convert the corpus to a DTM in order to extract the complete vocab
@@ -135,95 +117,73 @@ fedminutes.dtm <- DocumentTermMatrix(fedminutes.corpus, control = list(minWordLe
 print(paste("Dimensions of fedminutes.dtm are", dim(fedminutes.dtm)[1], "documents and", 
             dim(fedminutes.dtm)[2], "words in vocab"))
 fedminutes.vocab <- fedminutes.dtm$dimnames$Terms
+fedminutes_clean$wordcount <- rowSums(as.matrix(fedminutes.dtm))
 
-# Total wordcount
-fedminutes.df$wordcount <- rowSums(as.matrix(fedminutes.dtm))
-summary(fedminutes.df$wordcount)
-sum(fedminutes.df$wordcount)
-length(unique(fedminutes.df$meeting_id))
+# Include only the terms that appear in the minutes
+pb = txtProgressBar(min = 1, max = nrow(fedspeeches_clean), initial = 1) 
+for (ii in 1:nrow(fedspeeches_clean)){
+  para_temp <- fedspeeches_clean$paragraph_clean[ii]
+  para_temp <- str_split(para_temp, " ")[[1]]
+  para_temp <- para_temp[which(para_temp %in% fedminutes.vocab)]
+  fedspeeches_clean$paragraph_clean[ii] <- paste(para_temp, collapse = " ")
+  setTxtProgressBar(pb,ii)
+}
+fedspeeches_clean$wordcount <- str_count(fedspeeches_clean$paragraph_clean, " ") +1
+summary(fedspeeches_clean$wordcount)
+fedspeeches_clean <- fedspeeches_clean[which(fedspeeches_clean$wordcount >=4),]
 
-clean_filename = paste(clean_dir, "CBC/fedminutes_long_clean.csv", sep = "/")
-write.csv(fedminutes.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# fedminutes.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-
-
-
-
-
-### For the NYT articles corpus
-nyt_relevant$main_text <- gsub("-", " ", nyt_relevant$main_text)
-nyt_relevant$main_text <- gsub("/'", "", nyt_relevant$main_text)
-nyt_relevant$main_text <- gsub("’", "", nyt_relevant$main_text)
-nyt_relevant$main_text <- gsub("‘", "", nyt_relevant$main_text)
-nyt_relevant$main_text <- gsub("“", "", nyt_relevant$main_text)
-nyt_relevant$main_text <- gsub("”", "", nyt_relevant$main_text)
-nyt_relevant$main_text <- gsub("€", " ", nyt_relevant$main_text)
-nyt_relevant$main_text <- gsub(",", " ", nyt_relevant$main_text)
-nyt_relevant$main_text <- gsub(":", " ", nyt_relevant$main_text)
-
-nyt.corpus <- Corpus(VectorSource(unlist(nyt_relevant[, "main_text"])))
-# Preliminary cleaning
-inspect(nyt.corpus[[250]])
-nyt.corpus <- tm_map(nyt.corpus, stripWhitespace)
-inspect(nyt.corpus[[250]])
-nyt.corpus <- tm_map(nyt.corpus, removeNumbers)
-inspect(nyt.corpus[[250]])
-nyt.corpus <- tm_map(nyt.corpus, removePunctuation)
-inspect(nyt.corpus[[250]])
-nyt.corpus <- tm_map(nyt.corpus, content_transformer(tolower))
-inspect(nyt.corpus[[250]])
-nyt.corpus <- tm_map(nyt.corpus, removeWords, stopwords("english"))
-inspect(nyt.corpus[[250]])
-nyt.corpus <-  tm_map(nyt.corpus, stemDocument)
-inspect(nyt.corpus[[250]])
-nyt.corpus <- tm_map(nyt.corpus, stripWhitespace)
-inspect(nyt.corpus[[250]])
-
-# Remove months and seasons as they might introduce artificial co-movement
-months <- c("januari", "februari", "march", "april", "may", "june", "july", "juli", "julyaugust", "august",
-            "septemb", "octob", "novemb", "decemb")
-nyt.corpus <- tm_map(nyt.corpus, removeWords, months)
-seasons <- c("summer", "autumn", "spring", "winter")
-nyt.corpus <- tm_map(nyt.corpus, removeWords, seasons)
-website_words <- c("http", "www", "nytimes", "com", "wwwnytimescom", "wwwnytimes", "nytimescom", "url")
+pb = txtProgressBar(min = 1, max = nrow(nyt_clean), initial = 1) 
+for (ii in 1:nrow(nyt_clean)){
+  para_temp <- nyt_clean$paragraph_clean[ii]
+  para_temp <- str_split(para_temp, " ")[[1]]
+  para_temp <- para_temp[which(para_temp %in% fedminutes.vocab)]
+  nyt_clean$paragraph_clean[ii] <- paste(para_temp, collapse = " ")
+  setTxtProgressBar(pb,ii)
+}
+nyt_clean$wordcount <- str_count(nyt_clean$paragraph_clean, " ") +1
+summary(nyt_clean$wordcount)
+nyt_clean <- nyt_clean[which(nyt_clean$wordcount >=4),]
 
 
-# Then convert the corpus to a DTM in order to extract the complete vocab
-nyt.dtm <- DocumentTermMatrix(nyt.corpus, control = list(minWordLength = 3))
+
+
+
+## Check that the DTMs match the minutes
+fedspeeches.corpus <- Corpus(VectorSource(unlist(fedspeeches_clean[, "paragraph_clean"])))
+nyt.corpus <- Corpus(VectorSource(unlist(nyt_clean[, "paragraph_clean"])))
+
+fedspeeches.dtm <- DocumentTermMatrix(fedspeeches.corpus, control = 
+                                        list(minWordLength = 3))#, dictionary = Terms(fedminutes.dtm)))
+print(paste("Dimensions of fedspeeches.dtm are", dim(fedspeeches.dtm)[1], "documents and", 
+            dim(fedspeeches.dtm)[2], "words in vocab"))
+nyt.dtm <- DocumentTermMatrix(nyt.corpus, control = 
+                                list(minWordLength = 3))#, dictionary = Terms(fedminutes.dtm)))
 print(paste("Dimensions of nyt.dtm are", dim(nyt.dtm)[1], "documents and", 
             dim(nyt.dtm)[2], "words in vocab"))
 
-### Remove the words which are not common to the nyt and fed texts from the articles
-outersect <- function(x, y) {
-  sort(c(setdiff(x, y),
-         setdiff(y, x)))
-}
-nyt.vocab <- nyt.dtm$dimnames$Terms
-
-justnyt.vocab <- outersect(nyt.vocab, fedminutes.vocab)
 
 
 
-# Need to remove the vocab in stages as it is to large for the gsub function
-N <- length(justnyt.vocab)
-n <- N/1000
-n <- round(n+1,0)
-j <- 1
-for (i in 1:n){
-  print(j)
-  if ((j+999) < N){
-    nyt.corpus <- tm_map(nyt.corpus, removeWords, justnyt.vocab[j:(j+999)])
-    inspect(nyt.corpus[[700]])
-    print(j+999)
-  } else if (j < N){
-    nyt.corpus <- tm_map(nyt.corpus, removeWords, justnyt.vocab[j:N])
-    inspect(nyt.corpus[[700]])
-    print (N)
-  }
-  j <- j+1000
-}
+
+
+### Export the prepped text data
+
+names(fedminutes_clean)
+fedminutes_export <- fedminutes_clean[,c("unique_id", "meeting_id", "quarter", "meet_date", 
+                                         "pub_date", "paragraph_clean", "wordcount", "sentiment")]
+
+names(fedspeeches_clean)
+fedspeeches_export <- fedspeeches_clean[,c("unique_id", "speech_id", "quarter", "date", 
+                                         "paragraph_clean", "wordcount", "sentiment")]
+
+names(nyt_clean)
+nyt_export <- nyt_clean[,c("unique_id", "quarter", "date", "subsequent_meeting", "recent_meeting", 
+                           "subsequent_pub", "recent_pub", "subsequent_speech", "recent_speech",
+                           "paragraph_clean", "wordcount", "sentiment")]
+
+
+
+
 nyt.corpus <- tm_map(nyt.corpus, stripWhitespace)
 inspect(nyt.corpus[[700]])
 
