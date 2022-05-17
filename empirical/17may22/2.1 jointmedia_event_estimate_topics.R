@@ -14,35 +14,57 @@ require(tidytext)
 require(wordcloud)
 
 ### Define the directories where raw data is stored and clean will be saved
-clean_dir <- "data/clean_text/"
-export_dir <- "figures/fed_media_topics/"
+clean_dir <- "~/Documents/DPhil/Clean_Data/"
+export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 
-### Import the text data
-clean_filename = paste0(clean_dir, "fedminutes_clean.csv")
-fedminutes_df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+# Import the text data
+clean_filename = paste(clean_dir, "CBC/fedminutes_long_clean.csv", sep = "/")
+fedminutes.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
-clean_filename = paste0(clean_dir, "fedspeeches_clean.csv")
-fedspeeches_df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+clean_filename = paste(clean_dir, "CBC/NYT_relevant_clean_alt.csv", sep = "/")
+nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
-clean_filename = paste0(clean_dir, "NYT_clean_90s.csv")
-nyt_df1 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-clean_filename = paste0(clean_dir, "NYT_clean_00s.csv")
-nyt_df2 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-clean_filename = paste0(clean_dir, "NYT_clean_10s.csv")
-nyt_df3 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+############################# Unique identifier for each pre and post meeting period ############################# 
 
-nyt_df <- rbind(nyt_df1, nyt_df2, nyt_df3)
-rm(nyt_df1,nyt_df2,nyt_df3)
+# Separate out pre/post meeting/publication articles an
+premeet_articles.df <- nyt_relevant[which(!is.na(nyt_relevant$subsequent_meeting)),]
+postmeet_articles.df <- nyt_relevant[which(!is.na(nyt_relevant$recent_meeting)),]
+prepub_articles.df <- nyt_relevant[which(!is.na(nyt_relevant$subsequent_pub)),]
+postpub_articles.df <- nyt_relevant[which(!is.na(nyt_relevant$recent_pub)),]
 
 
+# edit each id to show whether this is in pre or post sample
+premeet_articles.df$meeting <- paste0(premeet_articles.df$subsequent_meeting, "_premeet")
+premeet_articles.df$article_id <- paste0(premeet_articles.df$unique_id, "_premeet")
+table(is.na(premeet_articles.df$recent_meeting))
 
-### Combine articles into a corpus with minutes, speeches and some articles
-total_df <- nyt_df[which(!is.na(nyt_df$subsequent_meeting) | !is.na(nyt_df$recent_meeting)),
-                         c("unique_id", "paragraph_clean")]
-total_df <- fedminutes_df[,c("unique_id", "paragraph_clean")]
-total_df <- rbind(total_df, fedspeeches_df[,c("unique_id", "paragraph_clean")])
-total_df <- rbind(total_df, nyt_df[,c("unique_id", "paragraph_clean")])
+postmeet_articles.df$meeting <- paste0(postmeet_articles.df$recent_meeting, "_postmeet")
+postmeet_articles.df$article_id <- paste0(postmeet_articles.df$unique_id, "_postmeet")
+table(is.na(postmeet_articles.df$subsequent_meeting))
+
+prepub_articles.df$meeting <- paste0(prepub_articles.df$subsequent_pub, "_prepub")
+prepub_articles.df$article_id <- paste0(prepub_articles.df$unique_id, "_prepub")
+table(is.na(premeet_articles.df$recent_pub))
+
+postpub_articles.df$meeting <- paste0(postpub_articles.df$recent_pub, "_postpub")
+postpub_articles.df$article_id <- paste0(postpub_articles.df$unique_id, "_postpub")
+table(is.na(postpub_articles.df$subsequent_pub))
+
+
+nyt_relevant <- rbind(premeet_articles.df, postmeet_articles.df,prepub_articles.df, postpub_articles.df)
+nyt_relevant <- nyt_relevant %>% arrange(meeting, article_id)
+table(nyt_relevant$meeting)
+
+
+fedminutes.df$text_clean <- fedminutes.df$paragraph_clean
+fedminutes.df$total_id <- fedminutes.df$unique_id
+nyt_relevant$total_id <- nyt_relevant$article_id
+total.df <- nyt_relevant[,c("total_id", "text_clean")]
+total.df <- rbind(total.df, fedminutes.df[,c("total_id", "text_clean")])
+
+articles_key <- unique(nyt_relevant[,c("total_id", "article_id","meeting", "subsequent_meeting", "recent_meeting",
+                                       "subsequent_pub", "recent_pub")])
 
 
 
@@ -50,10 +72,10 @@ total_df <- rbind(total_df, nyt_df[,c("unique_id", "paragraph_clean")])
 
 ############################# Convert to labelled DTM ############################# 
 
-total_corpus <- Corpus(VectorSource(unlist(total_df[, "paragraph_clean"])))
-total_dtm <- DocumentTermMatrix(total_corpus, control = list(minsWordLength = 3))
-print(paste("Dimensions of total_dtm are", dim(total_dtm)[1], "documents and", 
-            dim(total_dtm)[2], "words in vocab"))
+total.corpus <- Corpus(VectorSource(unlist(total.df[, "text_clean"])))
+total.dtm <- DocumentTermMatrix(total.corpus, control = list(minsWordLength = 3))
+print(paste("Dimensions of total.dtm are", dim(total.dtm)[1], "documents and", 
+            dim(total.dtm)[2], "words in vocab"))
 
 # Make sure each document is labelled with a unique identifier, in order to merge back later if necessary
 total.dtm$dimnames$Docs <- total.df$total_id
@@ -98,7 +120,7 @@ paragraph.topics
 
 
 # Write the topic vectors to file
-clean_filename = paste(clean_dir, "CBC/joint_paragraph_topics.csv", sep = "/")
+clean_filename = paste(clean_dir, "CBC/joint_paragraph_topics_long.csv", sep = "/")
 write.csv(paragraph.topics, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 # nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
@@ -158,7 +180,7 @@ meetingtopics <- subset(meetingtopics, select=-c(unique_id, total_id))
 
 meetinglevel.means <- meetingtopics %>%
   group_by(meeting_id) %>%
-  summarise_all(funs(mean))
+  summarise_all(list(mean))
 
 
 ############################# Find the means of the weekly newspaper ############################# 
@@ -166,12 +188,14 @@ meetinglevel.means <- meetingtopics %>%
 # Create a data-frame with the key info for each meeting
 articletopics <- merge(articles_key, articletopics, by = "total_id", all.x = TRUE)
 
-articlelevel.short <- subset(articletopics, select=-c(total_id, article_id, subsequent_meeting, recent_meeting))
+articlelevel.short <- subset(articletopics, select=-c(total_id, article_id, subsequent_meeting, 
+                                                      recent_meeting, subsequent_pub, recent_pub))
 articlelevel.means <- articlelevel.short %>%
   group_by(meeting) %>%
   summarise_all(funs(mean))
 
-articlemeeting_key <- unique(articles_key[,c("meeting", "subsequent_meeting", "recent_meeting")])
+articlemeeting_key <- unique(articles_key[,c("meeting", "subsequent_meeting", "recent_meeting", 
+                                             "subsequent_pub", "recent_pub")])
 
 articlelevel.means <- merge(articlelevel.means, articlemeeting_key, by = c("meeting"), all.x = TRUE)
 
@@ -184,14 +208,14 @@ articlelevel.means <- merge(articlelevel.means, articlemeeting_key, by = c("meet
 ############################# Write the average topic props ############################# 
 
 # Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/fedmeetingmeans_jointtopics.csv", sep = "/")
+clean_filename = paste(clean_dir, "CBC/fedmeetingmeans_jointtopics_long.csv", sep = "/")
 write.csv(meetinglevel.means, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+# meetinglevel.means <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 # Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/articlemeans_jointtopics.csv", sep = "/")
+clean_filename = paste(clean_dir, "CBC/articlemeans_jointtopics_long.csv", sep = "/")
 write.csv(articlelevel.means, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+# articlelevel.means <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
 
@@ -251,14 +275,14 @@ articlelevel.combined <- merge(articletopics.combined, articlemeeting_key, by = 
 ############################# Write the combined document topic props ############################# 
 
 # Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/fedmeetingcombined_jointtopics.csv", sep = "/")
+clean_filename = paste(clean_dir, "CBC/fedmeetingcombined_jointtopics_long.csv", sep = "/")
 write.csv(meetingtopics.combined, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 # meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 # Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/articlecombined_jointtopics.csv", sep = "/")
+clean_filename = paste(clean_dir, "CBC/articlecombined_jointtopics_long.csv", sep = "/")
 write.csv(articlelevel.combined, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+# articlelevel.combined <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
 
@@ -288,104 +312,6 @@ cor.test(articlelevel.means$T10, articlelevel.combined$T10)
 
 
 
-############################# Transformed topic proportions #############################
-
-### Fed minutes
-# Calculate log value for each topic proportion
-for (i in 1:k){
-  command <- paste0("meeting.df$lT", i, " <- log(meeting.df$T",i ,")")
-  eval(parse(text=command))
-}
-
-topicnames <- paste0("T", 1:k)
-l_topicnames <- paste0("lT", 1:k)
-Tsums <- rowMeans(meeting.df[,topicnames])
-summary(Tsums)
-lTsums <- rowMeans(meeting.df[,l_topicnames])
-summary(lTsums)
-
-meeting.df$lTsum <- lTsums
-
-# Calculate y_{d,k} = log(\theta_{d,k}) - 1/K \sum_m log(\theta_{d,m})
-for (i in 1:k){
-  command <- paste0("meeting.df$y", i, " <- meeting.df$lT",i ," - meeting.df$lTsum")
-  eval(parse(text=command))
-}
-
-
-# Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/fedmeeting_topics.csv", sep = "/")
-write.csv(meeting.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-
-### Combined articles 
-# Calculate log value for each topic proportion
-for (i in 1:k){
-  command <- paste0("combined_articles.topics$lT", i, " <- log(combined_articles.topics$T",i ,")")
-  eval(parse(text=command))
-}
-
-topicnames <- paste0("T", 1:k)
-l_topicnames <- paste0("lT", 1:k)
-Tsums <- rowMeans(combined_articles.topics[,topicnames])
-summary(Tsums)
-lTsums <- rowMeans(combined_articles.topics[,l_topicnames])
-summary(lTsums)
-
-combined_articles.topics$lTsum <- lTsums
-
-# Calculate y_{d,k} = log(\theta_{d,k}) - 1/K \sum_m log(\theta_{d,m})
-for (i in 1:k){
-  command <- paste0("combined_articles.topics$y", i, " <- combined_articles.topics$lT",i ," - combined_articles.topics$lTsum")
-  eval(parse(text=command))
-}
-
-clean_filename = paste(clean_dir, "CBC/combinedarticle_topics.csv", sep = "/")
-write.csv(combined_articles.topics, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# combined_articles.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-
-
-### Individual articles 
-# Calculate log value for each topic proportion
-for (i in 1:k){
-  command <- paste0("articlelevel.df$lT", i, " <- log(articlelevel.df$T",i ,")")
-  eval(parse(text=command))
-}
-
-topicnames <- paste0("T", 1:k)
-l_topicnames <- paste0("lT", 1:k)
-Tsums <- rowMeans(articlelevel.df[,topicnames])
-summary(Tsums)
-lTsums <- rowMeans(articlelevel.df[,l_topicnames])
-summary(lTsums)
-
-articlelevel.df$lTsum <- lTsums
-
-# Calculate y_{d,k} = log(\theta_{d,k}) - 1/K \sum_m log(\theta_{d,m})
-for (i in 1:k){
-  command <- paste0("articlelevel.df$y", i, " <- articlelevel.df$lT",i ," - articlelevel.df$lTsum")
-  eval(parse(text=command))
-}
-
-clean_filename = paste(clean_dir, "CBC/NYT_relevant_articleleveltopics.csv", sep = "/")
-write.csv(articlelevel.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# articlelevel.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-articlelevel.short <- subset(articlelevel.df, select=-c(article_id, subsequent_meeting, recent_meeting))
-articlelevel.means <- articlelevel.short %>%
-  group_by(meeting) %>%
-  summarise_all(funs(mean))
-articlelevel.means <- merge(articlelevel.means, article_key, by = c("meeting"), all.x = TRUE)
-
-clean_filename = paste(clean_dir, "CBC/article_meantopics", sep = "/")
-write.csv(articlelevel.means, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# articlelevel.means <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
 
 ############################# Word clouds ############################# 
 
@@ -398,7 +324,7 @@ sum(exp(paragraph.lda@beta[1,]))
 # opar <- par()  
 for (i in 1:k){
   # Filename for exported graphic
-  file_name <- paste0(export_dir, "joint_LDA/topic", i, "_cloud.png")
+  file_name <- paste0(export_dir, "joint_LDA_long/topic", i, "_cloud.png")
   print(paste0("Writing ", file_name))
   
   # Create a term distribution df
@@ -417,7 +343,7 @@ for (i in 1:k){
             random.order = FALSE,
             rot.per = 0.35,
             colors=brewer.pal(8, "Dark2"),
-            scale=c(5,.5))
+            scale=c(3,.2))
   dev.off()
 }
 #par(opar)
@@ -437,20 +363,35 @@ meetinglevel.means <- merge(meetinglevel.means, meeting.key, by = "meeting_id", 
 
 
 # Separate data frame for each central bank (easier than using melt() for now as need to loop over topics)
-pre_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$subsequent_meeting)),]
-pre_articles.df$meeting_id <- pre_articles.df$subsequent_meeting
-pre_articles.df <- merge(pre_articles.df, meeting.key, by = "meeting_id")
+premeet_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$subsequent_meeting)),]
+premeet_articles.df$meeting_id <- premeet_articles.df$subsequent_meeting
+premeet_articles.df <- merge(premeet_articles.df, meeting.key, by = "meeting_id")
 
-post_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$recent_meeting)),]
-post_articles.df$meeting_id <- post_articles.df$recent_meeting
-post_articles.df <- merge(post_articles.df, meeting.key, by = "meeting_id")
+prepub_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$subsequent_pub)),]
+prepub_articles.df$meeting_id <- prepub_articles.df$subsequent_pub
+prepub_articles.df <- merge(prepub_articles.df, meeting.key, by = "meeting_id")
+
+
+postmeet_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$recent_meeting)),]
+postmeet_articles.df$meeting_id <- postmeet_articles.df$recent_meeting
+postmeet_articles.df <- merge(postmeet_articles.df, meeting.key, by = "meeting_id")
+
+postpub_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$recent_pub)),]
+postpub_articles.df$meeting_id <- postpub_articles.df$recent_pub
+postpub_articles.df <- merge(postpub_articles.df, meeting.key, by = "meeting_id")
+
+
+# NYT articles
+articleplot.df <- premeet_articles.df
+articleplot.df$meet_date <- as.Date(articleplot.df$meet_date)
+
 
 ggplot() + 
   scale_color_manual("Source",
-                     values = c("Pre meeting" = "black", "Fed" = "blue3", "Post publication" = "darkgoldenrod2")) +
-  geom_line(data = meetinglevel.means, aes(x = meet_date, y = T9, color = "Fed")) +
-  geom_line(data = pre_articles.df, aes(x = meet_date, y = T9, color = "Pre meeting")) +
-  geom_line(data = post_articles.df, aes(x = meet_date, y = T9, color = "Post publication")) +
+                     values = c("NYT articles" = "dimgray", "Fed" = "blue3", "Post publication" = "darkgoldenrod2")) +
+  geom_line(data = meetinglevel.means, aes(x = meet_date, y = T7, color = "Fed")) +
+  geom_line(data = articleplot.df, aes(x = meet_date, y = T7, color = "NYT articles")) +
+  #geom_line(data = postmeet_articles.df, aes(x = meet_date, y = T10, color = "Post publication")) +
   xlab('Meeting date') +
   ylab(expression(theta[bt])) + 
   ggtitle("Topic 7 over time")

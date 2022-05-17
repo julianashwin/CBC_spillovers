@@ -18,7 +18,7 @@ clean_dir <- "data/clean_text/"
 export_dir <- "figures/fed_media_topics/"
 
 
-### Import the text data
+# Import the text data
 clean_filename = paste0(clean_dir, "fedminutes_clean.csv")
 fedminutes_df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
@@ -35,14 +35,31 @@ nyt_df3 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE
 nyt_df <- rbind(nyt_df1, nyt_df2, nyt_df3)
 rm(nyt_df1,nyt_df2,nyt_df3)
 
+############################# Unique identifier for each pre and post meeting period ############################# 
+
+# Separate out pre/post meeting/publication articles an
+pre_articles.df <- nyt_relevant[which(!is.na(nyt_relevant$subsequent_meeting)),]
+post_articles.df <- nyt_relevant[which(!is.na(nyt_relevant$recent_meeting)),]
+
+# edit each id to show whether this is in pre or post sample
+pre_articles.df$meeting <- paste0(pre_articles.df$subsequent_meeting, "_pre")
+pre_articles.df$article_id <- paste0(pre_articles.df$unique_id, "_pre")
+pre_articles.df$recent_meeting <- NA
+post_articles.df$meeting <- paste0(post_articles.df$recent_meeting, "_post")
+post_articles.df$article_id <- paste0(post_articles.df$unique_id, "_pre")
+post_articles.df$subsequent_meeting <- NA
+
+nyt_relevant <- rbind(pre_articles.df, post_articles.df)
+nyt_relevant <- nyt_relevant %>% arrange(meeting, article_id)
 
 
-### Combine articles into a corpus with minutes, speeches and some articles
-total_df <- nyt_df[which(!is.na(nyt_df$subsequent_meeting) | !is.na(nyt_df$recent_meeting)),
-                         c("unique_id", "paragraph_clean")]
-total_df <- fedminutes_df[,c("unique_id", "paragraph_clean")]
-total_df <- rbind(total_df, fedspeeches_df[,c("unique_id", "paragraph_clean")])
-total_df <- rbind(total_df, nyt_df[,c("unique_id", "paragraph_clean")])
+fedminutes.df$text_clean <- fedminutes.df$paragraph_clean
+fedminutes.df$total_id <- fedminutes.df$unique_id
+nyt_relevant$total_id <- nyt_relevant$article_id
+total.df <- nyt_relevant[,c("total_id", "text_clean")]
+total.df <- rbind(total.df, fedminutes.df[,c("total_id", "text_clean")])
+
+articles_key <- unique(nyt_relevant[,c("total_id", "article_id","meeting", "subsequent_meeting", "recent_meeting")])
 
 
 
@@ -50,10 +67,10 @@ total_df <- rbind(total_df, nyt_df[,c("unique_id", "paragraph_clean")])
 
 ############################# Convert to labelled DTM ############################# 
 
-total_corpus <- Corpus(VectorSource(unlist(total_df[, "paragraph_clean"])))
-total_dtm <- DocumentTermMatrix(total_corpus, control = list(minsWordLength = 3))
-print(paste("Dimensions of total_dtm are", dim(total_dtm)[1], "documents and", 
-            dim(total_dtm)[2], "words in vocab"))
+total.corpus <- Corpus(VectorSource(unlist(total.df[, "text_clean"])))
+total.dtm <- DocumentTermMatrix(total.corpus, control = list(minsWordLength = 3))
+print(paste("Dimensions of total.dtm are", dim(total.dtm)[1], "documents and", 
+            dim(total.dtm)[2], "words in vocab"))
 
 # Make sure each document is labelled with a unique identifier, in order to merge back later if necessary
 total.dtm$dimnames$Docs <- total.df$total_id
