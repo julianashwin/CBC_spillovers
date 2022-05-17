@@ -175,55 +175,12 @@ fedminutes_export <- fedminutes_clean[,c("unique_id", "meeting_id", "quarter", "
 names(fedspeeches_clean)
 fedspeeches_export <- fedspeeches_clean[,c("unique_id", "speech_id", "quarter", "date", 
                                          "paragraph_clean", "wordcount", "sentiment")]
-
 names(nyt_clean)
 nyt_export <- nyt_clean[,c("unique_id", "quarter", "date", "subsequent_meeting", "recent_meeting", 
                            "subsequent_pub", "recent_pub", "subsequent_speech", "recent_speech",
                            "paragraph_clean", "wordcount", "sentiment")]
-
-
-
-
-nyt.corpus <- tm_map(nyt.corpus, stripWhitespace)
-inspect(nyt.corpus[[700]])
-
-# Add the clean text to the data frame
-nyt_relevant$text_clean <- sapply(nyt.corpus, as.character)
-nyt_relevant$text_clean <- str_trim(nyt_relevant$text_clean)
-nyt_relevant[700, c("main_text", "text_clean")]
-
-table(as.numeric(nyt_relevant$text_clean == ""))
-table(is.na(nyt_relevant$text_clean))
-
-nyt_relevant <- nyt_relevant[,c("unique_id", "date_num", "headline", "recent_meeting",
-                                "subsequent_meeting",  "main_text", "text_clean"  )]
-
-
-
-# Then convert the corpus to a DTM in order to the final word counts
-nyt.dtm <- DocumentTermMatrix(nyt.corpus, control = list(minWordLength = 3))
-print(paste("Dimensions of nyt.dtm are", dim(nyt.dtm)[1], "documents and", 
-            dim(nyt.dtm)[2], "words in vocab"))
-
-
-### Calculate the tf and df score for each term
-term_freq <- col_sums(nyt.dtm) # Total number of times a term appears
-doc_freq <- col_sums(nyt.dtm > 0) # Total number of documents it appears i
-cor.test(term_freq, doc_freq)
-
-# Which terms appear in three or fewer documents
-rare_terms <- nyt.dtm[,doc_freq <= 3]$dimnames$Terms
-print(rare_terms)
-
-# Total wordcount
-nyt_relevant$wordcount <- rowSums(as.matrix(nyt.dtm))
-summary(nyt_relevant$wordcount)
-sum(nyt_relevant$wordcount)
-length(unique(nyt_relevant$unique_id))
-
-
-clean_filename = paste(clean_dir, "CBC/NYT_relevant_clean.csv", sep = "/")
-write.csv(nyt_relevant, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+write.csv(nyt_export[1:round(nrow(nyt_export)/2),], paste0(clean_dir, "NYT_clean_1.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(nyt_export[round(nrow(nyt_export)/2)+11:nrow(nyt_export),], paste0(clean_dir, "NYT_clean_2.csv"), fileEncoding = "utf-8", row.names = FALSE)
 # nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
