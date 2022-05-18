@@ -14,22 +14,23 @@ require(tidytext)
 require(wordcloud)
 
 ### Define the directories where raw data is stored and clean will be saved
-clean_dir <- "data/clean_text/"
-export_dir <- "figures/fed_media_topics/"
+import_dir <- "data/clean_text/"
+export_dir <- "data/topic_data/"
+fig_dir <- "figures/fed_media_topics/"
 
 
 ### Import the text data
-clean_filename = paste0(clean_dir, "fedminutes_clean.csv")
+clean_filename = paste0(import_dir, "fedminutes_clean.csv")
 fedminutes_df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
-clean_filename = paste0(clean_dir, "fedspeeches_clean.csv")
+clean_filename = paste0(import_dir, "fedspeeches_clean.csv")
 fedspeeches_df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
-clean_filename = paste0(clean_dir, "NYT_clean_90s.csv")
+clean_filename = paste0(import_dir, "NYT_clean_90s.csv")
 nyt_df1 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-clean_filename = paste0(clean_dir, "NYT_clean_00s.csv")
+clean_filename = paste0(import_dir, "NYT_clean_00s.csv")
 nyt_df2 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-clean_filename = paste0(clean_dir, "NYT_clean_10s.csv")
+clean_filename = paste0(import_dir, "NYT_clean_10s.csv")
 nyt_df3 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 nyt_df <- rbind(nyt_df1, nyt_df2, nyt_df3)
@@ -38,11 +39,12 @@ rm(nyt_df1,nyt_df2,nyt_df3)
 
 
 ### Combine articles into a corpus with minutes, speeches and some articles
-total_df <- nyt_df[which(!is.na(nyt_df$subsequent_meeting) | !is.na(nyt_df$recent_meeting)),
-                         c("unique_id", "paragraph_clean")]
-total_df <- fedminutes_df[,c("unique_id", "paragraph_clean")]
-total_df <- rbind(total_df, fedspeeches_df[,c("unique_id", "paragraph_clean")])
-total_df <- rbind(total_df, nyt_df[,c("unique_id", "paragraph_clean")])
+total_df <- nyt_df[which(!is.na(nyt_df$subsequent_meeting) | !is.na(nyt_df$recent_meeting) | 
+                     !is.na(nyt_df$recent_speech) | !is.na(nyt_df$subsequent_speech)),
+                         c("unique_id", "paragraph_clean", "sentiment")]
+total_df <- rbind(total_df, fedminutes_df[,c("unique_id", "paragraph_clean", "sentiment")])
+total_df <- rbind(total_df, fedspeeches_df[,c("unique_id", "paragraph_clean", "sentiment")])
+
 
 
 
@@ -56,30 +58,34 @@ print(paste("Dimensions of total_dtm are", dim(total_dtm)[1], "documents and",
             dim(total_dtm)[2], "words in vocab"))
 
 # Make sure each document is labelled with a unique identifier, in order to merge back later if necessary
-total.dtm$dimnames$Docs <- total.df$total_id
+total_dtm$dimnames$Docs <- total_df$unique_id
+fed_dtm <- total_dtm[str_detect(total_dtm$dimnames$Docs, "FEDp"),]
 
 
 # Calculate the tfidf score for each term
-term_tfidf <-tapply(total.dtm$v/row_sums(total.dtm)[total.dtm$i], total.dtm$j, mean) *
-  log2(nDocs(total.dtm)/col_sums(total.dtm > 0))
+term_tfidf <-tapply(total_dtm$v/row_sums(total_dtm)[total_dtm$i], total_dtm$j, mean) *
+  log2(nDocs(total_dtm)/col_sums(total_dtm > 0))
 summary(term_tfidf)
 quantile(term_tfidf, c(.01, .5, .99)) 
 
-low_terms <- total.dtm[,term_tfidf < 0.01]$dimnames$Terms
+tfidf_df <- data.frame(term = total_dtm$dimnames$Terms, tfidf = term_tfidf,
+                       tf = col_sums(total_dtm), df = col_sums(total_dtm > 0))
+
+low_terms <- total_dtm[,which(tfidf_df$tf > 2 & tfidf_df$df < )]$dimnames$Terms
 print(low_terms)
 
-
-
-######## Also remove the word "said" because it is fucking everywhere ######## 
-
 # Remove terms in the bottom 1% of the tf-idf ranking
-total.dtm <- total.dtm[,term_tfidf >= 0.01]
+total_dtm <- total_dtm[,term_tfidf >= 0.0122]
 
 # Remove all empty documents
-total.dtm <- total.dtm[row_sums(total.dtm) > 0,]
-print(paste("After removing low tf-idf terms, the dimensions of total.dtm are now", 
-            dim(total.dtm)[1], "documents and", dim(total.dtm)[2], "words in vocab"))
+total_dtm <- total_dtm[row_sums(total_dtm) > 0,]
+print(paste("After removing low tf-idf terms, the dimensions of total_dtm are now", 
+            dim(total_dtm)[1], "documents and", dim(total_dtm)[2], "words in vocab"))
 
+
+fed_dtm <- total_dtm[str_detect(total_dtm$dimnames$Docs, "FEDp"),]
+print(paste("After removing low tf-idf terms, the dimensions of fed_dtm are now", 
+            dim(fed_dtm)[1], "documents and", dim(fed_dtm)[2], "words in vocab"))
 
 
 
@@ -87,46 +93,50 @@ print(paste("After removing low tf-idf terms, the dimensions of total.dtm are no
 ############################# Estimate the topics on the paragraphs and articles ############################# 
 
 k <- 30
-paragraph.lda <- LDA(total.dtm, k = k, method = "Gibbs", 
+paragraph.lda <- LDA(total_dtm, k = k, method = "Gibbs", 
                      control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
-# paragraph.lda <- LDA(paragraph.dtm, k = k, control = list( verbose = 1))
-paragraph.lda
+paragraph_lda <- LDA(total_dtm, k = k, method = "VEM")
 
+# paragraph.lda <- LDA(paragraph.dtm, k = k, control = list( verbose = 1))
+paragraph_lda
+
+saveRDS(paragraph_lda, file = paste0(export_dir, "joint_paragraph_lda.rds"))
+paragraph_lda1 <- readRDS(file = paste0(export_dir, "joint_paragraph_lda.rds"))
 ### Store the topic beta vectors
-paragraph.topics <- tidy(paragraph.lda, matrix = "beta")
-paragraph.topics
+paragraph_topics <- tidy(paragraph_lda, matrix = "beta")
+paragraph_topics
 
 
 # Write the topic vectors to file
-clean_filename = paste(clean_dir, "CBC/joint_paragraph_topics.csv", sep = "/")
-write.csv(paragraph.topics, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+export_filename = paste0(export_dir, "joint_paragraph_topics.csv")
+write.csv(paragraph_topics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 # nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 
 
 # Identify the top ten terms for each topic
-top.terms <- paragraph.topics %>%
+top_terms <- paragraph_topics %>%
   group_by(topic) %>%
   top_n(10,beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
 
 # Plot these top ten terms for each topic
-top.terms %>%
+top_terms %>%
   mutate(term = reorder(term, beta)) %>%
   ggplot(aes(term, beta, fill = factor(topic))) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
-
+ggsave(paste0(fig_dir, "all_topics.pdf"), width = 12, height = 9)
 
 ### Store the topic proportion gamma/theta vectors
-paragraph.gamma <- tidy(paragraph.lda, matrix = "gamma")
-paragraph.gamma
+paragraph_gamma <- tidy(paragraph_lda, matrix = "gamma")
+paragraph_gamma
 
 
 ### Store the topic assignment of each word 
-paragraph.assignments <- augment(paragraph.lda, data = total.dtm)
+paragraph_assignments <- augment(paragraph_lda, data = total_dtm)
 
 
 
@@ -134,39 +144,50 @@ paragraph.assignments <- augment(paragraph.lda, data = total.dtm)
 ############################# Separate out again ############################# 
 
 # Calculate the topic distribution of the documents, given the term distributions estimated on the paragraphs
-paragraph.posterior <- posterior(paragraph.lda)
+paragraph_posterior <- posterior(paragraph_lda)
 
 # Extract the article topics with unique_id
-individual.topics <- as.data.frame(paragraph.posterior$topic)
-colnames(individual.topics) <- paste0("T", colnames(paragraph.posterior$topics))
-individual.topics$total_id <- rownames(individual.topics)
+individual_topics <- as.data.frame(paragraph_posterior$topic)
+colnames(individual_topics) <- paste0("T", colnames(paragraph_posterior$topics))
+individual_topics[,paste0("T", 1:k, "_sent")] <- individual_topics[,paste0("T", 1:k)]
+individual_topics$unique_id <- rownames(individual_topics)
 
 
 ### Split back into NYT and minutes 
-meetingtopics <- individual.topics[which(str_detect(individual.topics$total_id, "FED")),]
-articletopics <- individual.topics[which(str_detect(individual.topics$total_id, "nyt")),]
-
-
-
+speechtopics <- individual_topics[which(str_detect(individual_topics$unique_id, "SPEECHp")),]
+articletopics <- individual_topics[which(str_detect(individual_topics$unique_id, "nyt")),]
 
 
 
 ############################# Find the means of the meeting paragraphs ############################# 
 
-meetingtopics <- merge(meetingtopics, fedminutes.df[c("total_id", "unique_id", "meeting_id")], by = "total_id", all.x = TRUE)
-meetingtopics <- subset(meetingtopics, select=-c(unique_id, total_id))
+meetingtopics <- merge(fedminutes_df[,c("unique_id", "meeting_id", "meet_date","pub_date", 
+                                        "quarter", "sentiment")], 
+                       individual_topics[which(str_detect(individual_topics$unique_id, "FEDp")),], 
+                       by = "unique_id")
+sent_topics <- which(str_detect(names(meetingtopics), "_sent"))
+meetingtopics[,sent_topics] <- meetingtopics[,sent_topics]*meetingtopics$sentiment
 
-meetinglevel.means <- meetingtopics %>%
-  group_by(meeting_id) %>%
+
+meetinglevel_means <- meetingtopics %>%
+  select(-c(unique_id, sentiment)) %>%
+  group_by(meeting_id,meet_date,pub_date, quarter) %>%
   summarise_all(funs(mean))
+meetinglevel_means <- meetinglevel_means[order(meetinglevel_means$meet_date),]
+
+
+ggplot(meetinglevel_means) + theme_bw() + 
+  geom_line(aes(x = as.Date(meet_date), y = T18))
+
+
 
 
 ############################# Find the means of the weekly newspaper ############################# 
 
 # Create a data-frame with the key info for each meeting
-articletopics <- merge(articles_key, articletopics, by = "total_id", all.x = TRUE)
+articletopics <- merge(nyt_df[], articletopics, by = "unique_id")
 
-articlelevel.short <- subset(articletopics, select=-c(total_id, article_id, subsequent_meeting, recent_meeting))
+articletopics <- subset(articletopics, select=-c(paragraph_clean))
 articlelevel.means <- articlelevel.short %>%
   group_by(meeting) %>%
   summarise_all(funs(mean))
@@ -389,20 +410,20 @@ write.csv(articlelevel.means, file = clean_filename, fileEncoding = "utf-8", row
 
 ############################# Word clouds ############################# 
 
-terms(paragraph.lda, 5)
+terms(paragraph_lda, 5)
 
 # The beta contains the log transformation of the word probabilities
-sum(paragraph.lda@beta[1,])
-sum(exp(paragraph.lda@beta[1,]))
+sum(paragraph_lda@beta[1,])
+sum(exp(paragraph_lda@beta[1,]))
 
 # opar <- par()  
-for (i in 1:k){
+for (ii in 1:k){
   # Filename for exported graphic
-  file_name <- paste0(export_dir, "joint_LDA/topic", i, "_cloud.png")
+  file_name <- paste0(fig_dir, "clouds/topic", ii, "_cloud.png")
   print(paste0("Writing ", file_name))
   
   # Create a term distribution df
-  topic.df <- data.frame(term = paragraph.lda@terms, p = exp(paragraph.lda@beta[i,]))
+  topic.df <- data.frame(term = paragraph_lda@terms, p = exp(paragraph_lda@beta[ii,]))
   topic.df <- topic.df[order(-topic.df$p),]
   
   # Cut off only the top 50 words
