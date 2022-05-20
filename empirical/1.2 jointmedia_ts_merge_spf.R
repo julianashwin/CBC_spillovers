@@ -25,74 +25,144 @@ require(zoo)
 clean_dir <- "data/"
 export_dir <- "figures/"
 
+# Toggle which variable we will use 
+var_used <- "T"
+# Toggle the topic number (might need to adjust)
+k <- 30
+# Names of topic variables
+variablenames <- paste0(var_used, 1:k)
+
+standardise <- function(x){
+  x <- (x - mean(x, na.rm = TRUE))/sd(x, na.rm = TRUE)
+  return(x)
+}
+
 
 ############################# Import the topic proportions ############################# 
 
-# Import the weekly article data, averaged over articles
-import_filename =  "data/articlemeans_jointtopics.csv"
-articlelevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+# Import the minutes data averaged to the quarterly level
+import_filename = "data/topic_data/minutes_qly.csv"
+minutes_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
-# Import the minutes data estimated at the meeting level
-import_filename = "data/fedmeetingmeans_jointtopics.csv"
-meetinglevel.means <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+# Import the minutes data averaged to the quarterly level
+import_filename = "data/topic_data/minutes_qly.csv"
+speeches_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+speeches_df[,paste0(variablenames,"_speech")] <- speeches_df[,variablenames]
+speeches_df <- speeches_df[,c("quarter", paste0(variablenames,"_speech"))]
 
-# Import details for meetings to merge with 
-clean_filename = "data/fedminutes_long_clean.csv"
-fedminutes.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-fedminutes.df$meet_date <- as.Date(fedminutes.df$meet_date)
-fedminutes.df$pub_date <- as.Date(fedminutes.df$pub_date)
-meeting.key <- unique(fedminutes.df[,c("meeting_id", "pub_date", "meet_date")])
+# Import the quarterly article data, averaged over articles
+import_filename =  "data/topic_data/articles_qly.csv"
+articles_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+articles_df[,paste0(variablenames,"_news")] <- articles_df[,variablenames]
+articles_df <- articles_df[,c("quarter", paste0(variablenames,"_news"))]
 
-meeting.df <- merge(meetinglevel.means, meeting.key, by = "meeting_id", all.x = TRUE)
-meeting.df$meet_date <- as.Date(meeting.df$meet_date)
-meeting.df$pub_date <- as.Date(meeting.df$pub_date)
+# Combine into one quarterly df
+topics_df <- merge(minutes_df, speeches_df, by = "quarter", all.x = TRUE)
+topics_df <- merge(topics_df, articles_df, by = "quarter", all.x = TRUE)
+total_df <- topics_df
 
-
-# Split and merge the articles data
-pre_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$subsequent_meeting)),]
-pre_articles.df$meeting_id <- pre_articles.df$subsequent_meeting
-pre_articles.df <- merge(pre_articles.df, meeting.key, by = "meeting_id")
-
-post_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$recent_meeting)),]
-post_articles.df$meeting_id <- post_articles.df$recent_meeting
-post_articles.df <- merge(post_articles.df, meeting.key, by = "meeting_id")
+clean_filename = "data/topic_data/joint_topics_qly.csv"
+write.csv(topics_df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
 
+############################# Import SPF data ############################# 
 
 
+############################# Match topics with SPF series ############################# 
 
-############################# Get quarterly averages for minutes ############################# 
+spf_df <- data.frame(quarter = total_df$quarter)
+SPF_variables <- list("NGDP" = 2, "RGDP" = 2, "CPI" = 1, "TBILL" = 1, "EMP" = 2, "UNEMP" = 1, 
+                   "CPROF" = 2, "INDPROD" = 2, "HOUSING" = 2, "RRESINV" = 2, "RNRESIN" = 2, 
+                   "RCONSUM" = 2, "RFEDGOV" = 2, "RSLGOV" = 2)
+for (ii in 1:length(SPF_variables)){
+  code <- names(SPF_variables)[ii]
+  disp_measure <- SPF_variables[[ii]]
+  
+  import_filename <- paste0(clean_dir, "SPF/Dispersion_", disp_measure, ".xlsx")
+  dispersion.df <- data.frame(read_xlsx(import_filename, sheet = code, skip = 9))
+  
+  # Relabel the dispersion at various horizons
+  command <- paste0("dispersion.df$",code,"_dispersion <- dispersion.df$",code,"_D",disp_measure,".T.")
+  eval(parse(text=command))
+  dispersion.df[which(dispersion.df[,paste0(code,"_dispersion")] == "#N/A"),
+                      paste0(code,"_dispersion")] <- NA
+  dispersion.df[,paste0(code,"_dispersion")] <- as.numeric(dispersion.df[,paste0(code,"_dispersion")])
+  
+  for (ff in 1:4){
+    command <- paste0("dispersion.df$",code,"_f",ff,"_dispersion <- dispersion.df$",
+                      code,"_D",disp_measure,".T.",ff,".")
+    eval(parse(text=command))
+    dispersion.df[which(dispersion.df[,paste0(code,"_f",ff,"_dispersion")] == "#N/A"),
+                  paste0(code,"_f",ff,"_dispersion")] <- NA
+    dispersion.df[,paste0(code,"_f",ff,"_dispersion")] <- as.numeric(
+      dispersion.df[,paste0(code,"_f",ff,"_dispersion")])
+  }
+  
+  # Convert dates to quarterly 
+  dispersion.df$Date <- dispersion.df$Survey_Date.T.
+  year <- str_sub(dispersion.df$Date, 1,4)
+  quarter <- str_sub(dispersion.df$Date, 5,6)
+  quarter <- str_replace(quarter, "Q1", "01")
+  quarter <- str_replace(quarter, "Q2", "04")
+  quarter <- str_replace(quarter, "Q3", "07")
+  quarter <- str_replace(quarter, "Q4", "10")
+  date <- paste(year, quarter, "01", sep = "-")
+  
+  dispersion.df$Date <- as.Date(date)
+  dispersion.df$quarter <- floor_date(dispersion.df$Date, "quarter")
+  
+  keep_cols <- c("quarter", names(dispersion.df)[which(str_detect(names(dispersion.df), "_dispersion"))])
+  dispersion.df <- dispersion.df[,keep_cols]
+  
+  spf_df$quarter <- as.Date(spf_df$quarter)
+  dispersion.df$quarter <- as.Date(dispersion.df$quarter)
+  spf_df <- merge(spf_df, dispersion.df, by = "quarter", all.x = TRUE)
+  spf_df$quarter <- as.Date(spf_df$quarter)
+}
 
-# Set which variable we will use (to "y", "T" or "lT")
-var_used <- "T"
+spf_df$quarter <- as.Date(spf_df$quarter)
+topics_df$quarter <- as.Date(topics_df$quarter)
+total_df <- merge(spf_df, topics_df, by = "quarter")
+total_df$quarter <- as.Date(total_df$quarter)
 
-# Toggle the topic number (might need to adjust)
-k <- 30
-variablenames <- paste0(var_used, 1:k)
+ggplot(spf_df) + theme_bw() +
+  geom_line(aes(x = quarter, y = log(NGDP_dispersion), color = "0")) + 
+  geom_line(aes(x = quarter, y = log(NGDP_f1_dispersion), color = "1")) + 
+  geom_line(aes(x = quarter, y = log(NGDP_f2_dispersion), color = "2")) + 
+  geom_line(aes(x = quarter, y = log(NGDP_f3_dispersion), color = "3")) +
+  geom_line(aes(x = quarter, y = log(NGDP_f4_dispersion), color = "4"))
+  
+ggplot() + theme_bw() +
+  geom_line(data = total_df, aes(x = quarter, y = standardise(T13 + T27), color = "mins")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_f1_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_f2_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_f3_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_f4_dispersion), color = "SPF"))
+cor.test(total_df$T27+total_df$T13, total_df$NGDP_dispersion)  
 
-meeting.df$quarter <- floor_date(meeting.df$meet_date, "quarter")
-meeting.quarterly <- meeting.df %>%
-  dplyr::select(quarter, variablenames) %>%
-  group_by(quarter) %>%
-  summarise_all(mean)
+ggplot() + theme_bw() +
+  geom_line(data = total_df, aes(x = quarter, y = standardise(T9), color = "mins")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f1_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f2_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f3_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f4_dispersion), color = "SPF"))
+cor.test(total_df$T9, total_df$CPI_dispersion)  
 
-pre_articles.df$quarter <- floor_date(pre_articles.df$meet_date, "quarter")
-articles.quarterly <- pre_articles.df %>%
-  dplyr::select(quarter, variablenames) %>%
-  group_by(quarter) %>%
-  summarise_all(mean)
+ggplot() + theme_bw() +
+  geom_line(data = total_df, aes(x = quarter, y = standardise(T9), color = "mins")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f1_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f2_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f3_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f4_dispersion), color = "SPF"))
 
-names2 <- paste0(variablenames,"_news")
-articles.quarterly[,names2] <- articles.quarterly[,variablenames]
-articles.quarterly <- articles.quarterly[,c("quarter", names2)]
 
-topics.df <- merge(meeting.quarterly, articles.quarterly, by = "quarter", all.x = TRUE)
-total.df <- topics.df
+  
 
-clean_filename = "data/joint_topics_quarterly.csv"
-write.csv(topics.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-
+# Define a function to import and plot the SPF dispersion data alongside the relevant topic
 
 "
 code <- 'NGDP'
@@ -104,10 +174,6 @@ fed = TRUE
 news = TRUE
 "
 
-
-############################# Match topics with SPF series ############################# 
-
-# Define a function to import and plot the SPF dispersion data alongside the relevant topic
 
 plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.df, annual = FALSE,
                            fed = TRUE, news = TRUE){

@@ -12,6 +12,7 @@ require(topicmodels)
 require(tidyverse)
 require(tidytext)
 require(wordcloud)
+require(stargazer)
 
 ### Define the directories where raw data is stored and clean will be saved
 import_dir <- "data/clean_text/"
@@ -39,14 +40,13 @@ rm(nyt_df1,nyt_df2,nyt_df3)
 
 
 ### Combine articles into a corpus with minutes, speeches and some articles
-total_df <- nyt_df[which(!is.na(nyt_df$subsequent_meeting) | !is.na(nyt_df$recent_meeting) | 
-                     !is.na(nyt_df$recent_speech) | !is.na(nyt_df$subsequent_speech)),
-                         c("unique_id", "paragraph_clean", "sentiment")]
+total_df <- nyt_df[,c("unique_id", "paragraph_clean", "sentiment")]
 total_df <- rbind(total_df, fedminutes_df[,c("unique_id", "paragraph_clean", "sentiment")])
 total_df <- rbind(total_df, fedspeeches_df[,c("unique_id", "paragraph_clean", "sentiment")])
 
-
-
+total_df <- merge(total_df, nyt_df[,c("unique_id", "subsequent_meeting", "recent_meeting")],
+                  all.x = TRUE)
+total_df <- total_df[order(total_df$unique_id),]
 
 
 
@@ -61,54 +61,35 @@ print(paste("Dimensions of total_dtm are", dim(total_dtm)[1], "documents and",
 total_dtm$dimnames$Docs <- total_df$unique_id
 fed_dtm <- total_dtm[str_detect(total_dtm$dimnames$Docs, "FEDp"),]
 
-
-# Calculate the tfidf score for each term
-term_tfidf <-tapply(total_dtm$v/row_sums(total_dtm)[total_dtm$i], total_dtm$j, mean) *
-  log2(nDocs(total_dtm)/col_sums(total_dtm > 0))
-summary(term_tfidf)
-quantile(term_tfidf, c(.01, .5, .99)) 
-
-tfidf_df <- data.frame(term = total_dtm$dimnames$Terms, tfidf = term_tfidf,
-                       tf = col_sums(total_dtm), df = col_sums(total_dtm > 0))
-
-low_terms <- total_dtm[,which(tfidf_df$tf > 2 & tfidf_df$df < )]$dimnames$Terms
-print(low_terms)
-
-# Remove terms in the bottom 1% of the tf-idf ranking
-total_dtm <- total_dtm[,term_tfidf >= 0.0122]
-
-# Remove all empty documents
-total_dtm <- total_dtm[row_sums(total_dtm) > 0,]
-print(paste("After removing low tf-idf terms, the dimensions of total_dtm are now", 
-            dim(total_dtm)[1], "documents and", dim(total_dtm)[2], "words in vocab"))
-
-
-fed_dtm <- total_dtm[str_detect(total_dtm$dimnames$Docs, "FEDp"),]
-print(paste("After removing low tf-idf terms, the dimensions of fed_dtm are now", 
-            dim(fed_dtm)[1], "documents and", dim(fed_dtm)[2], "words in vocab"))
-
+table(total_dtm$dimnames$Docs == total_df$unique_id)
+short_obs <- (str_detect(total_df$unique_id, "FEDp") |
+              (str_detect(total_df$unique_id, "nyt") & !is.na(total_df$subsequent_meeting)) | 
+                 (str_detect(total_df$unique_id, "nyt") & !is.na(total_df$recent_meeting)))
+short_dtm <- total_dtm[short_obs,]
+table(str_detect(short_dtm$dimnames$Docs, "SPEECH"))
 
 
 
 ############################# Estimate the topics on the paragraphs and articles ############################# 
 
 k <- 30
-paragraph.lda <- LDA(total_dtm, k = k, method = "Gibbs", 
-                     control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
-paragraph_lda <- LDA(total_dtm, k = k, method = "VEM")
+#paragraph_lda <- LDA(total_dtm, k = k, method = "Gibbs", 
+#                     control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
+short_lda_vem <- LDA(short_dtm, k = k, method = "VEM")
 
 # paragraph.lda <- LDA(paragraph.dtm, k = k, control = list( verbose = 1))
-paragraph_lda
+paragraph_lda <- short_lda_vem
 
-saveRDS(paragraph_lda, file = paste0(export_dir, "joint_paragraph_lda.rds"))
-paragraph_lda1 <- readRDS(file = paste0(export_dir, "joint_paragraph_lda.rds"))
+saveRDS(paragraph_lda, file = paste0(export_dir, "overall/joint_paragraph_lda.rds"))
+#paragraph_lda <- readRDS(file = paste0(export_dir, "overall/joint_paragraph_lda.rds"))
+ 
 ### Store the topic beta vectors
 paragraph_topics <- tidy(paragraph_lda, matrix = "beta")
 paragraph_topics
 
 
 # Write the topic vectors to file
-export_filename = paste0(export_dir, "joint_paragraph_topics.csv")
+export_filename = paste0(export_dir, "overall/joint_paragraph_topics.csv")
 write.csv(paragraph_topics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 # nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
@@ -128,7 +109,7 @@ top_terms %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
-ggsave(paste0(fig_dir, "all_topics.pdf"), width = 12, height = 9)
+ggsave(paste0(fig_dir, "joint_all_topics.pdf"), width = 12, height = 9)
 
 ### Store the topic proportion gamma/theta vectors
 paragraph_gamma <- tidy(paragraph_lda, matrix = "gamma")
@@ -144,7 +125,7 @@ paragraph_assignments <- augment(paragraph_lda, data = total_dtm)
 ############################# Separate out again ############################# 
 
 # Calculate the topic distribution of the documents, given the term distributions estimated on the paragraphs
-paragraph_posterior <- posterior(paragraph_lda)
+paragraph_posterior <- posterior(paragraph_lda, newdata = total_dtm)
 
 # Extract the article topics with unique_id
 individual_topics <- as.data.frame(paragraph_posterior$topic)
@@ -153,9 +134,47 @@ individual_topics[,paste0("T", 1:k, "_sent")] <- individual_topics[,paste0("T", 
 individual_topics$unique_id <- rownames(individual_topics)
 
 
-### Split back into NYT and minutes 
+### Split back into NYT, speeches and minutes 
+meetingtopics <- individual_topics[which(str_detect(individual_topics$unique_id, "FEDp")),]
+export_filename = paste0(export_dir, "overall/meeting_topics.csv")
+write.csv(meetingtopics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
+
 speechtopics <- individual_topics[which(str_detect(individual_topics$unique_id, "SPEECHp")),]
+export_filename = paste0(export_dir, "overall/speech_topics.csv")
+write.csv(speechtopics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
+
 articletopics <- individual_topics[which(str_detect(individual_topics$unique_id, "nyt")),]
+export_filename = paste0(export_dir, "overall/article_topics.csv")
+write.csv(articletopics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
+
+
+### Summary table
+
+topic_summary_df <- data.frame(Topic = paste("Topic", 1:k), Description = " ", Top.5.Words = "", 
+                               mins = NA, speech = NA, nyt = NA)
+
+for (kk in 1:k){
+  topic_df <- data.frame(top_terms[which(top_terms$topic == kk),])
+  topic_summary_df$Top.5.Words[kk] <- paste(topic_df$term[1:5], collapse = ", ")
+  
+  topic_summary_df$mins[kk] <- round(mean(meetingtopics[,paste0("T",kk)]),4)
+  topic_summary_df$speech[kk] <- round(mean(speechtopics[,paste0("T",kk)]),4)
+  topic_summary_df$nyt[kk] <- round(mean(articletopics[,paste0("T",kk)]),4)
+  
+}
+
+stargazer(as.matrix(topic_summary_df), table.placement = "H")
+export_filename = paste0(export_dir, "joint_topics_summary.csv")
+write.csv(topic_summary_df, export_filename, fileEncoding = "utf-8", row.names = FALSE)
+
+
+
+
+
+
+
+
+
 
 
 
@@ -169,368 +188,133 @@ sent_topics <- which(str_detect(names(meetingtopics), "_sent"))
 meetingtopics[,sent_topics] <- meetingtopics[,sent_topics]*meetingtopics$sentiment
 
 
+# Quarterly time series
+meetinglevel_qly <- meetingtopics %>%
+  select(-c(unique_id, sentiment, meeting_id, meet_date, pub_date)) %>%
+  group_by(quarter) %>%
+  summarise_all(funs(mean))
+meetinglevel_qly <- meetinglevel_qly[order(meetinglevel_qly$quarter),]
+# Export
+write.csv(meetinglevel_qly, paste0(export_dir, "minutes_qly.csv"), fileEncoding = "utf-8", row.names = FALSE)
+
+
+
+# Meeting level time series
 meetinglevel_means <- meetingtopics %>%
   select(-c(unique_id, sentiment)) %>%
   group_by(meeting_id,meet_date,pub_date, quarter) %>%
   summarise_all(funs(mean))
 meetinglevel_means <- meetinglevel_means[order(meetinglevel_means$meet_date),]
+# Export
+write.csv(meetinglevel_means, paste0(export_dir, "minutes_event.csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
-ggplot(meetinglevel_means) + theme_bw() + 
-  geom_line(aes(x = as.Date(meet_date), y = T18))
+ggplot(meetinglevel_qly) + theme_bw() + 
+  geom_line(aes(x = as.Date(quarter), y = T14))
+
+############################# Find the means of the speech paragraphs ############################# 
+
+speechtopics <- merge(fedspeeches_df[,c("unique_id", "speech_id", "date", 
+                                        "quarter", "sentiment")], 
+                       individual_topics[which(str_detect(individual_topics$unique_id, "SPEECHp")),], 
+                       by = "unique_id")
+sent_topics <- which(str_detect(names(speechtopics), "_sent"))
+speechtopics[,sent_topics] <- speechtopics[,sent_topics]*speechtopics$sentiment
+
+# Quarterly time series
+speechlevel_qly <- speechtopics %>%
+  select(-c(unique_id, sentiment, speech_id, date)) %>%
+  group_by(quarter) %>%
+  summarise_all(funs(mean))
+speechlevel_qly <- speechlevel_qly[order(speechlevel_qly$quarter),]
+# Export
+write.csv(speechlevel_qly, paste0(export_dir, "speeches_qly.csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
+# Speech level time series
+speechlevel_means <- speechtopics %>%
+  select(-c(unique_id, sentiment)) %>%
+  group_by(speech_id, date, quarter) %>%
+  summarise_all(funs(mean))
+speechlevel_means <- speechlevel_means[order(speechlevel_means$date),]
+# Export
+write.csv(speechlevel_means, paste0(export_dir, "speeches_event.csv"), fileEncoding = "utf-8", row.names = FALSE)
 
+
+ggplot(speechlevel_qly) + theme_bw() + 
+  geom_line(aes(x = as.Date(quarter), y = T23))
 
 ############################# Find the means of the weekly newspaper ############################# 
 
 # Create a data-frame with the key info for each meeting
-articletopics <- merge(nyt_df[], articletopics, by = "unique_id")
+articletopics <- merge(nyt_df[,c("unique_id", "date", "quarter", "subsequent_meeting",
+                                 "recent_meeting", "subsequent_pub", "recent_pub", "subsequent_speech",
+                                 "recent_speech", "sentiment")], 
+                       individual_topics[which(str_detect(individual_topics$unique_id, "nyt")),], 
+                       by = "unique_id")
+sent_topics <- which(str_detect(names(articletopics), "_sent"))
+articletopics[,sent_topics] <- articletopics[,sent_topics]*articletopics$sentiment
 
-articletopics <- subset(articletopics, select=-c(paragraph_clean))
-articlelevel.means <- articlelevel.short %>%
-  group_by(meeting) %>%
+# Add a comma to the end of the subsequent and recent column to allow identification of multiple events
+articletopics$subsequent_meeting <- paste0(articletopics$subsequent_meeting, ",")
+articletopics$recent_meeting <- paste0(articletopics$recent_meeting, ",")
+articletopics$subsequent_pub <- paste0(articletopics$subsequent_pub, ",")
+articletopics$recent_pub <- paste0(articletopics$recent_pub, ",")
+articletopics$subsequent_speech <- paste0(articletopics$subsequent_speech, ",")
+articletopics$recent_speech <- paste0(articletopics$recent_speech, ",")
+
+# Aggregate by quarter
+article_qly <- articletopics %>%
+  select(-c(unique_id, date, subsequent_meeting,recent_meeting, subsequent_pub, recent_pub, 
+            subsequent_speech, recent_speech, sentiment)) %>%
+  group_by(quarter) %>%
   summarise_all(funs(mean))
+article_qly <- article_qly[order(article_qly$quarter),]
+# Export
+write.csv(article_qly, paste0(export_dir, "articles_qly.csv"), fileEncoding = "utf-8", row.names = FALSE)
 
-articlemeeting_key <- unique(articles_key[,c("meeting", "subsequent_meeting", "recent_meeting")])
 
-articlelevel.means <- merge(articlelevel.means, articlemeeting_key, by = c("meeting"), all.x = TRUE)
+ggplot(article_qly) + theme_bw() + 
+  geom_line(aes(x = as.Date(quarter), y = T23))
 
 
+# Quite an involved aggregation to get the meeting/speech level topics
+article_events <- data.frame(event = unique(c(fedminutes_df$meeting_id, fedspeeches_df$speech_id)))
+topic_cols <- which(names(articletopics) %in% paste0("T", 1:k))
 
+article_events[, paste0("pre_meet_", "T", 1:k)] <- NA
+article_events[, paste0("post_meet_", "T", 1:k)] <- NA
+article_events[, paste0("pre_pub_", "T", 1:k)] <- NA
+article_events[, paste0("post_pub_", "T", 1:k)] <- NA
 
-
-
-
-############################# Write the average topic props ############################# 
-
-# Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/fedmeetingmeans_jointtopics.csv", sep = "/")
-write.csv(meetinglevel.means, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-# Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/articlemeans_jointtopics.csv", sep = "/")
-write.csv(articlelevel.means, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-
-
-
-
-
-
-
-
-############################# Combine the paragraphs into documents ############################# 
-
-# Collapse paragraphs into whole meeting documents
-meetinglevel.df <- fedminutes.df %>%
-  group_by(meeting_id) %>%
-  summarise(text=paste(paragraph_clean,collapse=' ')) %>%
-  rename(meeting = meeting_id)
-
-articles_combined <- nyt_relevant %>%
-  group_by(meeting) %>%
-  summarise(text=paste(text_clean,collapse=' '))
-
-total_combined <- rbind(meetinglevel.df, articles_combined)
-
-
-
-combined.corpus <- Corpus(VectorSource(unlist(total_combined[, "text"])))
-combined.dtm <- DocumentTermMatrix(combined.corpus, control = list(minsWordLength = 3))
-print(paste("Dimensions of combined.dtm are", dim(combined.dtm)[1], "documents and", 
-            dim(combined.dtm)[2], "words in vocab"))
-
-# Make sure each document is labelled with a unique identifier, in order to merge back later
-combined.dtm$dimnames$Docs <- total_combined$meeting
-
-
-
-############################# Estimate paragraph-topic props at meeting and weekly level ############################# 
-
-# Calculate the topic distribution of the documents, given the term distributions estimated on the paragraphs
-combined.posterior <- posterior(paragraph.lda, newdata = combined.dtm)
-
-combined.topics <- as.data.frame(combined.posterior$topic)
-colnames(combined.topics) <- paste0("T", colnames(combined.posterior$topics))
-combined.topics$meeting <- rownames(combined.topics)
-
-meetingtopics.combined <- combined.topics[which(!str_detect(combined.topics$meeting, "p")),]
-articletopics.combined <- combined.topics[which(str_detect(combined.topics$meeting, "p")),]
-
-
-articlelevel.combined <- merge(articletopics.combined, articlemeeting_key, by = c("meeting"), all.x = TRUE)
-
-
-
-
-
-
-############################# Write the combined document topic props ############################# 
-
-# Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/fedmeetingcombined_jointtopics.csv", sep = "/")
-write.csv(meetingtopics.combined, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-# Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/articlecombined_jointtopics.csv", sep = "/")
-write.csv(articlelevel.combined, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-
-
-
-meetinglevel.means <- meetinglevel.means[order(meetinglevel.means$meeting_id),]
-meetingtopics.combined <- meetingtopics.combined[order(meetinglevel.means$meeting_id),]
-articlelevel.means <- articlelevel.means[order(articlelevel.means$meeting),]
-articlelevel.combined <- articlelevel.combined[order(articlelevel.combined$meeting),]
-
-cor.test(meetinglevel.means$T1, meetingtopics.combined$T1)
-cor.test(meetinglevel.means$T3, meetingtopics.combined$T3)
-cor.test(meetinglevel.means$T4, meetingtopics.combined$T4)
-cor.test(meetinglevel.means$T8, meetingtopics.combined$T8)
-cor.test(meetinglevel.means$T10, meetingtopics.combined$T10)
-
-
-
-cor.test(articlelevel.means$T1, articlelevel.combined$T1)
-cor.test(articlelevel.means$T3, articlelevel.combined$T3)
-cor.test(articlelevel.means$T4, articlelevel.combined$T4)
-cor.test(articlelevel.means$T8, articlelevel.combined$T8)
-cor.test(articlelevel.means$T10, articlelevel.combined$T10)
-
-
-
-
-
-
-############################# Transformed topic proportions #############################
-
-### Fed minutes
-# Calculate log value for each topic proportion
-for (i in 1:k){
-  command <- paste0("meeting.df$lT", i, " <- log(meeting.df$T",i ,")")
-  eval(parse(text=command))
-}
-
-topicnames <- paste0("T", 1:k)
-l_topicnames <- paste0("lT", 1:k)
-Tsums <- rowMeans(meeting.df[,topicnames])
-summary(Tsums)
-lTsums <- rowMeans(meeting.df[,l_topicnames])
-summary(lTsums)
-
-meeting.df$lTsum <- lTsums
-
-# Calculate y_{d,k} = log(\theta_{d,k}) - 1/K \sum_m log(\theta_{d,m})
-for (i in 1:k){
-  command <- paste0("meeting.df$y", i, " <- meeting.df$lT",i ," - meeting.df$lTsum")
-  eval(parse(text=command))
-}
-
-
-# Write the meeting topic distributions to file
-clean_filename = paste(clean_dir, "CBC/fedmeeting_topics.csv", sep = "/")
-write.csv(meeting.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# meeting.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-
-### Combined articles 
-# Calculate log value for each topic proportion
-for (i in 1:k){
-  command <- paste0("combined_articles.topics$lT", i, " <- log(combined_articles.topics$T",i ,")")
-  eval(parse(text=command))
-}
-
-topicnames <- paste0("T", 1:k)
-l_topicnames <- paste0("lT", 1:k)
-Tsums <- rowMeans(combined_articles.topics[,topicnames])
-summary(Tsums)
-lTsums <- rowMeans(combined_articles.topics[,l_topicnames])
-summary(lTsums)
-
-combined_articles.topics$lTsum <- lTsums
-
-# Calculate y_{d,k} = log(\theta_{d,k}) - 1/K \sum_m log(\theta_{d,m})
-for (i in 1:k){
-  command <- paste0("combined_articles.topics$y", i, " <- combined_articles.topics$lT",i ," - combined_articles.topics$lTsum")
-  eval(parse(text=command))
-}
-
-clean_filename = paste(clean_dir, "CBC/combinedarticle_topics.csv", sep = "/")
-write.csv(combined_articles.topics, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# combined_articles.topics <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-
-
-### Individual articles 
-# Calculate log value for each topic proportion
-for (i in 1:k){
-  command <- paste0("articlelevel.df$lT", i, " <- log(articlelevel.df$T",i ,")")
-  eval(parse(text=command))
-}
-
-topicnames <- paste0("T", 1:k)
-l_topicnames <- paste0("lT", 1:k)
-Tsums <- rowMeans(articlelevel.df[,topicnames])
-summary(Tsums)
-lTsums <- rowMeans(articlelevel.df[,l_topicnames])
-summary(lTsums)
-
-articlelevel.df$lTsum <- lTsums
-
-# Calculate y_{d,k} = log(\theta_{d,k}) - 1/K \sum_m log(\theta_{d,m})
-for (i in 1:k){
-  command <- paste0("articlelevel.df$y", i, " <- articlelevel.df$lT",i ," - articlelevel.df$lTsum")
-  eval(parse(text=command))
-}
-
-clean_filename = paste(clean_dir, "CBC/NYT_relevant_articleleveltopics.csv", sep = "/")
-write.csv(articlelevel.df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# articlelevel.df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-articlelevel.short <- subset(articlelevel.df, select=-c(article_id, subsequent_meeting, recent_meeting))
-articlelevel.means <- articlelevel.short %>%
-  group_by(meeting) %>%
-  summarise_all(funs(mean))
-articlelevel.means <- merge(articlelevel.means, article_key, by = c("meeting"), all.x = TRUE)
-
-clean_filename = paste(clean_dir, "CBC/article_meantopics", sep = "/")
-write.csv(articlelevel.means, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-# articlelevel.means <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-############################# Word clouds ############################# 
-
-terms(paragraph_lda, 5)
-
-# The beta contains the log transformation of the word probabilities
-sum(paragraph_lda@beta[1,])
-sum(exp(paragraph_lda@beta[1,]))
-
-# opar <- par()  
-for (ii in 1:k){
-  # Filename for exported graphic
-  file_name <- paste0(fig_dir, "clouds/topic", ii, "_cloud.png")
-  print(paste0("Writing ", file_name))
+pb = txtProgressBar(min = 1, max = nrow(article_events), initial = 1) 
+for (ii in 1:nrow(article_events)){
+  event = paste0(article_events$event[ii], ",")
   
-  # Create a term distribution df
-  topic.df <- data.frame(term = paragraph_lda@terms, p = exp(paragraph_lda@beta[ii,]))
-  topic.df <- topic.df[order(-topic.df$p),]
-  
-  # Cut off only the top 50 words
-  topic.df <- topic.df[1:50,]
-  
-  # Plot the wordclouds
-  par(mar = rep(0, 4))
-  png(file_name)
-  wordcloud(words = topic.df$term,
-            freq = topic.df$p,
-            max.words = 50,
-            random.order = FALSE,
-            rot.per = 0.35,
-            colors=brewer.pal(8, "Dark2"),
-            scale=c(5,.5))
-  dev.off()
-}
-#par(opar)
-
-
-
-############################# Proportions for each corpus ############################# 
-
-fedminutes.df$meet_date <- as.Date(fedminutes.df$meet_date)
-fedminutes.df$pub_date <- as.Date(fedminutes.df$pub_date)
-
-
-meeting.key <- unique(fedminutes.df[,c("meeting_id", "pub_date", "meet_date")])
-
-
-meetinglevel.means <- merge(meetinglevel.means, meeting.key, by = "meeting_id", all.x = TRUE)
-
-
-# Separate data frame for each central bank (easier than using melt() for now as need to loop over topics)
-pre_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$subsequent_meeting)),]
-pre_articles.df$meeting_id <- pre_articles.df$subsequent_meeting
-pre_articles.df <- merge(pre_articles.df, meeting.key, by = "meeting_id")
-
-post_articles.df <- articlelevel.means[which(!is.na(articlelevel.means$recent_meeting)),]
-post_articles.df$meeting_id <- post_articles.df$recent_meeting
-post_articles.df <- merge(post_articles.df, meeting.key, by = "meeting_id")
-
-ggplot() + 
-  scale_color_manual("Source",
-                     values = c("Pre meeting" = "black", "Fed" = "blue3", "Post publication" = "darkgoldenrod2")) +
-  geom_line(data = meetinglevel.means, aes(x = meet_date, y = T9, color = "Fed")) +
-  geom_line(data = pre_articles.df, aes(x = meet_date, y = T9, color = "Pre meeting")) +
-  geom_line(data = post_articles.df, aes(x = meet_date, y = T9, color = "Post publication")) +
-  xlab('Meeting date') +
-  ylab(expression(theta[bt])) + 
-  ggtitle("Topic 7 over time")
-
-# Plot the topic proportions over time 
-for (i in 1:k){
-  file_name <- paste0(export_dir, "joint_LDA/topic", i, "_graph.png")
-  print(paste0("Writing ", file_name))
-  
-  command <- paste0("
-                    ggplot() + 
-                    scale_color_manual(\"Source\", values = c(\"Pre meeting\" = \"black\", \"Fed\" = \"blue3\", \"Post publication\" = \"darkgoldenrod2\")) +
-                    geom_line(data = meetinglevel.means, aes(x = meet_date, y = T",i,", color = \"Fed\")) +
-                    geom_line(data = pre_articles.df, aes(x = meet_date, y = T",i,", color = \"Pre meeting\")) +
-                    geom_line(data = post_articles.df, aes(x = meet_date, y = T",i,", color = \"Post publication\")) +
-                    xlab(\"Meeting date\") +
-                    ylab(expression(theta[bt])) + 
-                    ggtitle(\"Topic ", i, " over time\") +
-                    ggsave(\"", file_name, "\")")
-  eval(parse(text=command))
+  if (str_detect(event, "FED")){
+    pre_meet_topics <- articletopics[which(str_detect(articletopics$subsequent_meeting, event)),topic_cols]
+    article_events[ii,paste0("pre_meet_", "T", 1:k)] <- colMeans(pre_meet_topics)
+    
+    post_meet_topics <- articletopics[which(str_detect(articletopics$recent_meeting, event)),topic_cols]
+    article_events[ii,paste0("post_meet_", "T", 1:k)] <- colMeans(post_meet_topics)
+    
+    pre_pub_topics <- articletopics[which(str_detect(articletopics$subsequent_pub, event)),topic_cols]
+    article_events[ii,paste0("pre_pub_", "T", 1:k)] <- colMeans(pre_pub_topics)
+    
+    post_pub_topics <- articletopics[which(str_detect(articletopics$recent_pub, event)),topic_cols]
+    article_events[ii,paste0("post_pub_", "T", 1:k)] <- colMeans(post_pub_topics)
+  }
+  if (str_detect(event, "SPEECH")){
+    pre_pub_topics <- articletopics[which(str_detect(articletopics$subsequent_speech, event)),topic_cols]
+    article_events[ii,paste0("pre_pub_", "T", 1:k)] <- colMeans(pre_pub_topics)
+    
+    post_pub_topics <- articletopics[which(str_detect(articletopics$recent_speech, event)),topic_cols]
+    article_events[ii,paste0("post_pub_", "T", 1:k)] <- colMeans(post_pub_topics)
+  }
+  setTxtProgressBar(pb,ii)
 }
 
-
-
-############################# Tex files for figures ############################# 
-
-texoutput <- vector()
-beginfigure <- "\\begin{figure}[H]\n\t\\centering\n\t\\caption{LDA Topic "
-begincontentsub <- " (transformed)} \n \t \\begin{subfigure}{.45\\textwidth} 
-\t\t\\centering 
-\t\t\\includegraphics[width=1.1\\textwidth]{figures/joint_LDA/topic"
-endcontentsub <- "_cloud} \n\t\\end{subfigure} \n"
-begintimesub <- "\t\\begin{subfigure}{.45\\textwidth}
-\t\t\\centering\n\t\t
-\t\t\\includegraphics[width=1\\textwidth]{figures/joint_LDA/topic"
-endfigure <- "_graph}\n\t\\end{subfigure}\n\\end{figure}"
-
-# Loop over each topic and combine strings to create the .tex code
-for (i in 1:k){
-  x <- paste(beginfigure, i, begincontentsub, i, endcontentsub, 
-             begintimesub, i, endfigure, sep = "")
-  texoutput[i] <- x
-}
-# loop to write each topic to a .tex
-for (h in 1:k){
-  filename_specific <- paste(export_dir, "joint_LDA/topic",h,"_fig.tex",sep="")
-  write(texoutput[h], filename_specific)
-}
-
-filename_all <- paste(export_dir, "joint_LDA/all_fig.tex",sep="")
-write(paste(texoutput, collapse = "\n\n"), filename_all)
-
-
-
-
-
-
-
-
+write.csv(article_events, paste0(export_dir, "articles_event.csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
 

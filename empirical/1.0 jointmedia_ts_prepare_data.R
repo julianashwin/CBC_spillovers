@@ -21,8 +21,9 @@ fedspeeches.df <- read.csv(clean_filename, stringsAsFactors = FALSE)
 # Import the clean NYT articles
 clean_filename = "~/Documents/DPhil/Clean_Data/New_York_Times/econ_news/nyt_articles_matched.csv"
 nyt.df <- read.csv(clean_filename, stringsAsFactors = FALSE)
-
-
+nyt.df <- nyt.df[which(!is.na(nyt.df$subsequent_meeting) | !is.na(nyt.df$recent_meeting) | 
+                         !is.na(nyt.df$recent_pub) | !is.na(nyt.df$subsequent_pub) |
+                         !is.na(nyt.df$recent_speech) | !is.na(nyt.df$subsequent_speech)),]
 
 ############################# Some basic cleaning ############################# 
 
@@ -31,6 +32,11 @@ nyt.df <- read.csv(clean_filename, stringsAsFactors = FALSE)
 fedminutes.df$paragraph <- gsub("-|/'|/'|’|‘|“|”|€|,|:", " ", fedminutes.df$paragraph)
 fedspeeches.df$paragraph <- gsub("-|/'|/'|’|‘|“|”|€|,|:", " ", fedspeeches.df$paragraph)
 nyt.df$main_text <- gsub("-|/'|/'|’|‘|“|”|€|,|:", " ", nyt.df$main_text)
+# keep only alphanumeric characters
+fedminutes.df$paragraph <- str_replace_all(fedminutes.df$paragraph, regex("\\W+"), " ")
+fedspeeches.df$paragraph <- str_replace_all(fedspeeches.df$paragraph, regex("\\W+"), " ")
+nyt.df$main_text <- str_replace_all(nyt.df$main_text, regex("\\W+"), " ")
+
 
 # Squish and update nchar
 fedminutes.df$paragraph <- str_squish(fedminutes.df$paragraph)
@@ -87,6 +93,13 @@ fedminutes.corpus <- tm_map(fedminutes.corpus, removeWords, seasons)
 fedspeeches.corpus <- tm_map(fedspeeches.corpus, removeWords, seasons)
 nyt.corpus <- tm_map(nyt.corpus, removeWords, seasons)
 
+# additional stop words
+extra_stopwords <- c("said", "will", "can", "market", "rate", "econom")
+fedminutes.corpus <- tm_map(fedminutes.corpus, removeWords, extra_stopwords)
+fedspeeches.corpus <- tm_map(fedspeeches.corpus, removeWords, extra_stopwords)
+nyt.corpus <- tm_map(nyt.corpus, removeWords, seasons)
+
+
 # Add cleaned text as new column
 fedminutes.df$paragraph_clean <- sapply(fedminutes.corpus, as.character)
 fedminutes.df$paragraph_clean <- str_squish(fedminutes.df$paragraph_clean)
@@ -114,12 +127,30 @@ fedminutes.corpus <- Corpus(VectorSource(unlist(fedminutes_clean[, "paragraph_cl
 
 # Then convert the corpus to a DTM in order to extract the complete vocab
 fedminutes.dtm <- DocumentTermMatrix(fedminutes.corpus, control = list(minWordLength = 3))
+fedminutes.dtm <- fedminutes.dtm[,col_sums(fedminutes.dtm) > 2]
 print(paste("Dimensions of fedminutes.dtm are", dim(fedminutes.dtm)[1], "documents and", 
             dim(fedminutes.dtm)[2], "words in vocab"))
+
 fedminutes.vocab <- fedminutes.dtm$dimnames$Terms
 fedminutes_clean$wordcount <- rowSums(as.matrix(fedminutes.dtm))
 
-# Include only the terms that appear in the minutes
+tfidf_df <- data.frame(term = fedminutes.dtm$dimnames$Terms, 
+                       tf = col_sums(fedminutes.dtm), df = col_sums(fedminutes.dtm > 0))
+
+## Include only the terms that appear in the minutes
+pb = txtProgressBar(min = 1, max = nrow(fedminutes_clean), initial = 1) 
+for (ii in 1:nrow(fedminutes_clean)){
+  para_temp <- fedminutes_clean$paragraph_clean[ii]
+  para_temp <- str_split(para_temp, " ")[[1]]
+  para_temp <- para_temp[which(para_temp %in% fedminutes.vocab)]
+  fedminutes_clean$paragraph_clean[ii] <- paste(para_temp, collapse = " ")
+  setTxtProgressBar(pb,ii)
+}
+fedminutes_clean$wordcount <- str_count(fedminutes_clean$paragraph_clean, " ") +1
+summary(fedminutes_clean$wordcount)
+fedminutes_clean <- fedminutes_clean[which(fedminutes_clean$wordcount >=4),]
+
+
 pb = txtProgressBar(min = 1, max = nrow(fedspeeches_clean), initial = 1) 
 for (ii in 1:nrow(fedspeeches_clean)){
   para_temp <- fedspeeches_clean$paragraph_clean[ii]
@@ -149,9 +180,14 @@ nyt_clean <- nyt_clean[which(nyt_clean$wordcount >=4),]
 
 
 ## Check that the DTMs match the minutes
+fedminutes.corpus <- Corpus(VectorSource(unlist(fedminutes_clean[, "paragraph_clean"])))
 fedspeeches.corpus <- Corpus(VectorSource(unlist(fedspeeches_clean[, "paragraph_clean"])))
 nyt.corpus <- Corpus(VectorSource(unlist(nyt_clean[, "paragraph_clean"])))
 
+fedminutes.dtm <- DocumentTermMatrix(fedminutes.corpus, control = 
+                                        list(minWordLength = 3))#, dictionary = Terms(fedminutes.dtm)))
+print(paste("Dimensions of fedminutes.dtm are", dim(fedminutes.dtm)[1], "documents and", 
+            dim(fedminutes.dtm)[2], "words in vocab"))
 fedspeeches.dtm <- DocumentTermMatrix(fedspeeches.corpus, control = 
                                         list(minWordLength = 3))#, dictionary = Terms(fedminutes.dtm)))
 print(paste("Dimensions of fedspeeches.dtm are", dim(fedspeeches.dtm)[1], "documents and", 
@@ -190,9 +226,9 @@ nyt_export <- nyt_clean[,c("unique_id", "quarter", "date", "subsequent_meeting",
 write.csv(nyt_export[nyt_export$date < "2000",], paste0(clean_dir, "NYT_clean_90s.csv"), fileEncoding = "utf-8", row.names = FALSE)
 write.csv(nyt_export[nyt_export$date >= "2000" & nyt_export$date < "2010",], 
           paste0(clean_dir, "NYT_clean_00s.csv"), fileEncoding = "utf-8", row.names = FALSE)
-write.csv(nyt_export[nyt_export$date >= "2010",], paste0(clean_dir, "NYT_clean_10a.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(nyt_export[nyt_export$date >= "2010",], paste0(clean_dir, "NYT_clean_10s.csv"), fileEncoding = "utf-8", row.names = FALSE)
 # Save full version to icloud for safe-keeping
-write.csv(nyt_export, "~/Documents/DPhil/Clean_Data/New_York_Times/econ_news/nyt_articles_matched.csv", 
+write.csv(nyt_export, "~/Documents/DPhil/Clean_Data/New_York_Times/econ_news/nyt_articles_clean.csv", 
           fileEncoding = "utf-8", row.names = FALSE)
 # nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
