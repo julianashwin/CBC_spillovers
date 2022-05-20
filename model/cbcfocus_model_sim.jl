@@ -153,14 +153,19 @@ Distribution of a_b1|s_b1
 colvars = [:ϵ1, :ϵ2, :η1, :η2, :s1, :s2, :ŝ1, :ŝ2, :a1, :a2, :μ1, :μ2,
     :Σ1, :Σ2, :σ_ϵ1, :σ_ϵ2, :σ_ν1, :σ_ν2, :σ_η1, :σ_η2]
 ## Create df
-sim_df = DataFrame(repeat([0.],100000, length(colvars)), colvars)
+sim_df = DataFrame(repeat([0.],500000, length(colvars)), colvars)
 ## Simulate
 par = reset_par()
 sim_df = simulate_model(par, sim_df)
+sim_df.s1_bins = round.(sim_df.s1, digits = 1)
+sort!(sim_df, :s1)
+sim_meds = combine(groupby(sim_df,:s1_bins),:a1=>median=>:a1)
+sim_meds = sim_meds[abs.(sim_meds.s1_bins) .<= 5.0,:]
 CSV.write("model_results/sim_df.csv",sim_df)
 # Plot heatmap
 plt_s1b = histogram2d(sim_df.s1, sim_df.a1, nbins=100, weights = repeat([1/nrow(sim_df)],nrow(sim_df)),
     xlabel = raw"$s_{i,t}$", ylabel = raw"$a_{i,t}$", c=:blues)
+plt_s1b = plot!(sim_meds.s1_bins, sim_meds.a1, label = false, color = :black)
 display(plt_s1b)
 savefig("model_figs/attention_signal.pdf")
 
@@ -193,9 +198,9 @@ savefig("model_figs/attention_nu.pdf")
 σ_η1_df = sensitivity_analysis(:σ_η1, 0.1:0.1:3, nruns = 50000)
 σ_η1_meds = combine(groupby(σ_η1_df,:σ_η1),:a1=>median=>:a1)
 #CSV.write("model_results/sigma_eta_df.csv",σ_η1_df)
-plt_η1 = plot(σ_η1_df.σ_η1, σ_η1_df.a1,  nbins=(0.1:0.1:3,0:0.025:1),
-    weights = repeat([1/nrow(σ_η1_df)],nrow(σ_η1_df)),ylabel = raw"$a_{i,t}$",
-    xlabel = raw"$\sigma^2_{\eta,i}/\sigma^2_{\eta,j}$")
+plt_η1 = histogram2d(σ_η1_df.σ_η1, σ_η1_df.a1,  nbins=(0.1:0.1:3,0:0.025:1),
+    weights = repeat([1/nrow(σ_η1_df)],nrow(σ_η1_df)),
+    xlabel = raw"$\sigma^2_{\eta,i}/\sigma^2_{\eta,j}$",ylabel = raw"$a_{i,t}$", c=:blues)
 plt_η1 = plot!(σ_η1_meds.σ_η1, σ_η1_meds.a1, label = false, color = :black)
 display(plt_η1)
 savefig("model_figs/attention_nu.pdf")
