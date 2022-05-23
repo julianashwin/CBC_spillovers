@@ -45,7 +45,7 @@ import_filename = "data/topic_data/minutes_qly.csv"
 minutes_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 # Import the minutes data averaged to the quarterly level
-import_filename = "data/topic_data/minutes_qly.csv"
+import_filename = "data/topic_data/speeches_qly.csv"
 speeches_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 speeches_df[,paste0(variablenames,"_speech")] <- speeches_df[,variablenames]
 speeches_df <- speeches_df[,c("quarter", paste0(variablenames,"_speech"))]
@@ -72,6 +72,7 @@ write.csv(topics_df, file = clean_filename, fileEncoding = "utf-8", row.names = 
 ############################# Match topics with SPF series ############################# 
 
 spf_df <- data.frame(quarter = total_df$quarter)
+# disp = 1 is levels, and 2 is growth
 SPF_variables <- list("NGDP" = 2, "RGDP" = 2, "CPI" = 1, "TBILL" = 1, "EMP" = 2, "UNEMP" = 1, 
                    "CPROF" = 2, "INDPROD" = 2, "HOUSING" = 2, "RRESINV" = 2, "RNRESIN" = 2, 
                    "RCONSUM" = 2, "RFEDGOV" = 2, "RSLGOV" = 2)
@@ -126,6 +127,11 @@ topics_df$quarter <- as.Date(topics_df$quarter)
 total_df <- merge(spf_df, topics_df, by = "quarter")
 total_df$quarter <- as.Date(total_df$quarter)
 
+ggplot() + theme_bw() +
+  geom_line(data = total_df, aes(x = quarter, y = standardise(T5), color = "mins")) + 
+  geom_line(data = total_df, aes(x = quarter, y = standardise(T5_speech), color = "speech")) +
+  geom_line(data = total_df, aes(x = quarter, y = standardise(T5_news), color = "news"))
+
 ggplot(spf_df) + theme_bw() +
   geom_line(aes(x = quarter, y = log(NGDP_dispersion), color = "0")) + 
   geom_line(aes(x = quarter, y = log(NGDP_f1_dispersion), color = "1")) + 
@@ -149,122 +155,37 @@ ggplot() + theme_bw() +
   geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f2_dispersion), color = "SPF")) + 
   geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f3_dispersion), color = "SPF")) + 
   geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f4_dispersion), color = "SPF"))
-cor.test(total_df$T9, total_df$CPI_dispersion)  
 
 ggplot() + theme_bw() +
-  geom_line(data = total_df, aes(x = quarter, y = standardise(T9), color = "mins")) + 
+  geom_line(data = total_df, aes(x = quarter, y = standardise(T8), color = "mins")) + 
   geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_dispersion), color = "SPF")) + 
   geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f1_dispersion), color = "SPF")) + 
   geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f2_dispersion), color = "SPF")) + 
   geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f3_dispersion), color = "SPF")) + 
   geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f4_dispersion), color = "SPF"))
+cor.test(total_df$T8, total_df$CPI_dispersion)  
+
+ggplot() + theme_bw() +
+  geom_line(data = total_df, aes(x = quarter, y = standardise(T5_news), color = "mins")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f1_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f2_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f3_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f4_dispersion), color = "SPF"))
+cor.test(total_df$T5_news, total_df$HOUSING_dispersion)  
 
 
-  
+
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f1_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f2_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f3_dispersion), color = "SPF")) + 
+  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f4_dispersion), color = "SPF"))
+cor.test(total_df$T5_news, total_df$HOUSING_dispersion)  
 
 # Define a function to import and plot the SPF dispersion data alongside the relevant topic
 
-"
-code <- 'NGDP'
-descrip <- 'Growth'
-topic <- 20
-disp_measure = 1 # disp = 1 is levels, and 2 is growth
-annual = FALSE
-fed = TRUE
-news = TRUE
-"
 
-
-plot_topicdisp <- function(code, descrip, topic, disp_measure, topics.df, total.df, annual = FALSE,
-                           fed = TRUE, news = TRUE){
-  import_filename <- paste0(clean_dir, "SPF/Dispersion_", disp_measure, ".xlsx")
-  
-  # Read and clean the SPF dispersion data
-  dispersion.df <- read_xlsx(import_filename, sheet <- code, skip = 9)
-  if (annual == FALSE){
-    command <- paste0("dispersion.df$",code,"_dispersion <- dispersion.df$`",code,"_D",disp_measure,"(T)`")
-    eval(parse(text=command))
-    command <- paste0("dispersion.df$",code,"_f1_dispersion <- dispersion.df$`",code,"_D",disp_measure,"(T+1)`")
-  } else{
-    command <- paste0("dispersion.df$",code,"_dispersion <- dispersion.df$`",code,"_D",disp_measure,"`")
-  }
-  eval(parse(text=command))
-  if (annual == FALSE){
-    command <- paste0("dispersion.df <- dispersion.df[which(dispersion.df$", code,"_dispersion != \"#N/A\"),]")
-  } else {
-    command <- paste0("dispersion.df[which(dispersion.df$", code,"_dispersion == \"#N/A\"), \"",code,"_dispersion\"] <- NA")
-  }
-  eval(parse(text=command))
-  command <- paste0("dispersion.df$", code,"_dispersion <- as.numeric(dispersion.df$", code, "_dispersion)")
-  eval(parse(text=command))
-  command <- paste0("dispersion.df$", code,"_f1_dispersion <- as.numeric(dispersion.df$", code, "_f1_dispersion)")
-  eval(parse(text=command))
-  # Convert dates to quarterly 
-  dispersion.df$Date <- dispersion.df$`Survey_Date(T)`
-  year <- str_sub(dispersion.df$Date, 1,4)
-  quarter <- str_sub(dispersion.df$Date, 5,6)
-  quarter <- str_replace(quarter, "Q1", "01")
-  quarter <- str_replace(quarter, "Q2", "04")
-  quarter <- str_replace(quarter, "Q3", "07")
-  quarter <- str_replace(quarter, "Q4", "10")
-  
-  date <- paste(year, quarter, "01", sep = "-")
-  
-  dispersion.df$Date <- as.Date(date)
-  dispersion.df$quarter <- floor_date(dispersion.df$Date, "quarter")
-  
-  if (annual == TRUE){
-    command <- paste0(" dispersion.df$", code,"_dispersion <- na.locf(dispersion.df$", code,"_dispersion, na.rm = FALSE)")
-    eval(parse(text=command))
-  }
-  
-  # Keep only the date and dispersion measure
-  command <- paste0("dispersion.df <- select(dispersion.df, c(quarter, ", code,"_dispersion, ",code,"_f1_dispersion))")
-  eval(parse(text=command))
-  
-  # Merge with the topic data
-  plot.df <- merge(topics.df, dispersion.df, by = "quarter", all.x = TRUE)
-  
-  # Calculate mean and variance for normalisation
-  command <- paste0("exp.mean <- mean(plot.df$", code, "_dispersion, na.rm = TRUE)
-                    exp.var <- sd(plot.df$",code,"_dispersion, na.rm = TRUE)
-                    expf.mean <- mean(plot.df$", code, "_f1_dispersion, na.rm = TRUE)
-                    expf.var <- sd(plot.df$",code,"_f1_dispersion, na.rm = TRUE)")
-  eval(parse(text=command))
-  command <- paste0("meeting.mean <- mean(plot.df$T", topic, ", na.rm = TRUE)
-                    meeting.var <- sd(plot.df$T",topic, ", na.rm = TRUE)
-                    article.mean <- mean(plot.df$T", topic,"_news, na.rm = TRUE)
-                    article.var <- sd(plot.df$T", topic, "_news, na.rm = TRUE)")
-  eval(parse(text=command))
-  
-  
-  if (paste0(code, "_dispersion") %in% colnames(total.df)){
-    print("Already added to total.df")
-    merged.df <- total.df
-    
-    command <- paste0("merged.df$", code, "_dispersion <- plot.df$",code,"_dispersion")
-    eval(parse(text=command))
-    command <- paste0("merged.df$", code, "_f1_dispersion <- plot.df$",code,"_f1_dispersion")
-    eval(parse(text=command))
-    # Name a topic
-    command <- paste0("merged.df$", code, "_topic_fed <- merged.df$T",topic)
-    eval(parse(text=command))
-    command <- paste0("merged.df$", code, "_topic_news <- merged.df$T",topic, "_news")
-    eval(parse(text=command))
-    
-  } else{
-    merged.df <- merge(total.df, dispersion.df, by = "quarter", all.x = TRUE)
-    merged.df$quarter <- as.Date(total.df$quarter)
-    
-    # Name a topic
-    command <- paste0("merged.df$", code, "_topic_fed <- merged.df$T",topic)
-    eval(parse(text=command))
-    command <- paste0("merged.df$", code, "_topic_news <- merged.df$T",topic, "_news")
-    eval(parse(text=command))
-    
-  }
-   return(merged.df)
-}
 
 
 # Inflation

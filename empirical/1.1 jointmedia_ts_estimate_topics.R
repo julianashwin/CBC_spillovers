@@ -76,11 +76,15 @@ k <- 30
 #paragraph_lda <- LDA(total_dtm, k = k, method = "Gibbs", 
 #                     control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
 short_lda_vem <- LDA(short_dtm, k = k, method = "VEM")
+short_lda_gibbs <- LDA(short_dtm, k = k, method = "Gibbs",
+                     control = list(verbose = 100, burnin = 1000, thin = 50, iter = 10000))
+full_lda_vem <- LDA(total_dtm, k = k, method = "VEM")
 
 # paragraph.lda <- LDA(paragraph.dtm, k = k, control = list( verbose = 1))
-paragraph_lda <- short_lda_vem
+paragraph_lda <- full_lda_vem
 
-saveRDS(paragraph_lda, file = paste0(export_dir, "overall/joint_paragraph_lda.rds"))
+saveRDS(paragraph_lda, file = paste0(export_dir, "overall/short_lda.rds"))
+saveRDS(full_lda_vem, file = paste0(export_dir, "overall/full_lda.rds"))
 #paragraph_lda <- readRDS(file = paste0(export_dir, "overall/joint_paragraph_lda.rds"))
  
 ### Store the topic beta vectors
@@ -91,8 +95,7 @@ paragraph_topics
 # Write the topic vectors to file
 export_filename = paste0(export_dir, "overall/joint_paragraph_topics.csv")
 write.csv(paragraph_topics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
-# nyt_relevant <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
+#paragraph_topics <- read.csv(export_filename, stringsAsFactors = FALSE)
 
 
 # Identify the top ten terms for each topic
@@ -155,11 +158,11 @@ topic_summary_df <- data.frame(Topic = paste("Topic", 1:k), Description = " ", T
 
 for (kk in 1:k){
   topic_df <- data.frame(top_terms[which(top_terms$topic == kk),])
-  topic_summary_df$Top.5.Words[kk] <- paste(topic_df$term[1:5], collapse = ", ")
+  topic_summary_df$Top.5.Words[kk] <- paste(topic_df$term[1:6], collapse = ", ")
   
-  topic_summary_df$mins[kk] <- round(mean(meetingtopics[,paste0("T",kk)]),4)
-  topic_summary_df$speech[kk] <- round(mean(speechtopics[,paste0("T",kk)]),4)
-  topic_summary_df$nyt[kk] <- round(mean(articletopics[,paste0("T",kk)]),4)
+  topic_summary_df$mins[kk] <- round(mean(minutes_df[,paste0("T",kk)]),4)
+  topic_summary_df$speech[kk] <- round(mean(speeches_df[,paste0("T",kk)]),4)
+  topic_summary_df$nyt[kk] <- round(mean(articles_df[,paste0("T",kk)]),4)
   
 }
 
