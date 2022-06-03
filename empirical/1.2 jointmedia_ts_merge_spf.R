@@ -65,6 +65,11 @@ clean_filename = "data/topic_data/joint_topics_qly.csv"
 write.csv(topics_df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
+# Import the topic summary for interpretation 
+import_filename =  "data/topic_data/joint_topics_summary.csv"
+topic_summary <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+
+
 
 ############################# Import SPF data ############################# 
 
@@ -127,10 +132,55 @@ topics_df$quarter <- as.Date(topics_df$quarter)
 total_df <- merge(spf_df, topics_df, by = "quarter")
 total_df$quarter <- as.Date(total_df$quarter)
 
-ggplot() + theme_bw() +
-  geom_line(data = total_df, aes(x = quarter, y = standardise(T5), color = "mins")) + 
-  geom_line(data = total_df, aes(x = quarter, y = standardise(T5_speech), color = "speech")) +
-  geom_line(data = total_df, aes(x = quarter, y = standardise(T5_news), color = "news"))
+
+
+"
+Create correlation matrix
+"
+
+create_corr_df <- function(total_df, SPF_variables, suffix = "", k = 30){
+  corr_df <- data.frame(matrix(NA, 30,15))
+  names(corr_df) <- c("topic", names(SPF_variables))
+  
+  corr_df$topic <- paste0("T", 1:k, ".",str_replace_all(topic_summary$Top.5.Words, ", ","."))
+  for(ii in 1:nrow(corr_df)){
+    topic_series <- total_df[,paste0("T",ii)]
+    for (spf_var in names(SPF_variables)){
+      spf_series <- total_df[,paste0(spf_var, "_dispersion")]
+      cor_obj <- cor.test(topic_series, spf_series)
+      sig_level <- "{}"
+      if (cor_obj$p.value <= 0.1){
+        sig_level <- "{.}"
+      } 
+      if (cor_obj$p.value <= 0.05){
+        sig_level <- "{..}"
+      }
+      if (cor_obj$p.value <= 0.01){
+        sig_level <- "{...}"
+      }
+      corr_df[ii, spf_var]<- paste0(round(cor_obj$estimate,3), sig_level)
+    }
+  }
+  
+  
+}
+
+ggplot(total_df) + theme_bw() +
+  geom_line(aes(x = quarter, y = standardise(T13), color = "mins")) + 
+  geom_line(aes(x = quarter, y = standardise(T13_speech), color = "speech")) +
+  geom_line(aes(x = quarter, y = standardise(T13_news), color = "news")) + 
+  geom_line(aes(x = quarter, y = standardise(CPI_dispersion), color = "spf"))
+cor.test(total_df$T13+total_df$T7, total_df$CPI_dispersion)
+
+
+ggplot(total_df) + theme_bw() +
+  geom_line(aes(x = quarter, y = standardise(T3), color = "mins")) + 
+  geom_line(aes(x = quarter, y = standardise(T3_speech), color = "speech")) +
+  geom_line(aes(x = quarter, y = standardise(T3_news), color = "news")) + 
+  geom_line(aes(x = quarter, y = standardise(RGDP_f1_dispersion), color = "spf"))
+cor.test(total_df$T3, total_df$RGDP_dispersion)
+
+
 
 ggplot(spf_df) + theme_bw() +
   geom_line(aes(x = quarter, y = log(NGDP_dispersion), color = "0")) + 

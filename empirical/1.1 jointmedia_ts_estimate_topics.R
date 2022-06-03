@@ -9,10 +9,21 @@ require(stringr)
 require(tm)
 require(slam)
 require(topicmodels)
+require(seededlda)
 require(tidyverse)
 require(tidytext)
 require(wordcloud)
 require(stargazer)
+require(usethis)
+require(slam)
+# usethis::edit_r_environ()
+
+
+standardise <- function(x){
+  x <- (x - mean(x, na.rm = TRUE))/sd(x, na.rm = TRUE)
+  return(x)
+}
+
 
 ### Define the directories where raw data is stored and clean will be saved
 import_dir <- "data/clean_text/"
@@ -49,7 +60,6 @@ total_df <- merge(total_df, nyt_df[,c("unique_id", "subsequent_meeting", "recent
 total_df <- total_df[order(total_df$unique_id),]
 
 
-
 ############################# Convert to labelled DTM ############################# 
 
 total_corpus <- Corpus(VectorSource(unlist(total_df[, "paragraph_clean"])))
@@ -72,20 +82,22 @@ table(str_detect(short_dtm$dimnames$Docs, "SPEECH"))
 
 ############################# Estimate the topics on the paragraphs and articles ############################# 
 
-k <- 30
+k <- 20
 #paragraph_lda <- LDA(total_dtm, k = k, method = "Gibbs", 
 #                     control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
-short_lda_vem <- LDA(short_dtm, k = k, method = "VEM")
+#full_lda_vem <- LDA(total_dtm, k = k, method = "VEM")
+rm(total_corpus, fed_dtm)
+
 short_lda_gibbs <- LDA(short_dtm, k = k, method = "Gibbs",
-                     control = list(verbose = 100, burnin = 1000, thin = 20, iter = 10000))
-full_lda_vem <- LDA(total_dtm, k = k, method = "VEM")
+                     control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
+
 
 # paragraph.lda <- LDA(paragraph.dtm, k = k, control = list( verbose = 1))
-paragraph_lda <- short_lda_vem
+paragraph_lda <- short_lda_gibbs
 
-saveRDS(paragraph_lda, file = paste0(export_dir, "overall/short_lda.rds"))
-saveRDS(full_lda_vem, file = paste0(export_dir, "overall/full_lda.rds"))
-#paragraph_lda <- readRDS(file = paste0(export_dir, "overall/full_lda.rds"))
+saveRDS(paragraph_lda, file = paste0(export_dir, "overall/short_lda_k",k,".rds"))
+#saveRDS(full_lda_vem, file = paste0(export_dir, "overall/full_lda.rds"))
+#paragraph_lda <- readRDS(file = paste0(export_dir, "overall/short_lda.rds"))
  
 ### Store the topic beta vectors
 paragraph_topics <- tidy(paragraph_lda, matrix = "beta")
@@ -93,9 +105,25 @@ paragraph_topics
 
 
 # Write the topic vectors to file
-export_filename = paste0(export_dir, "overall/joint_paragraph_topics.csv")
+export_filename = paste0(export_dir, "overall/joint_paragraph_topics_k",k,".csv")
 write.csv(paragraph_topics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 #paragraph_topics <- read.csv(export_filename, stringsAsFactors = FALSE)
+
+# Calculate FREX scores (Bischof and Airoldi, 2012)
+topics_desc <- pivot_wider(paragraph_topics, id_cols = c(term), names_from = topic, 
+                           names_glue = "beta{topic}", values_from = beta)
+topics_desc <- data.frame(topics_desc[order(topics_desc$term),])
+
+topicnames <- paste0("beta", 1:k)
+w <- 0.3
+for (kk in 1:k){
+  E_temp <- topics_desc[,paste0("beta",kk)]/row_sums(topics_desc[,topicnames])
+  
+  topics_desc[,paste0("FREX",kk)] <- (w/topics_desc[,paste0("beta",kk)] + 
+                                        (1-w)/E_temp)^(-1)
+}
+
+
 
 
 # Identify the top ten terms for each topic
@@ -139,15 +167,15 @@ individual_topics$unique_id <- rownames(individual_topics)
 
 ### Split back into NYT, speeches and minutes 
 meetingtopics <- individual_topics[which(str_detect(individual_topics$unique_id, "FEDp")),]
-export_filename = paste0(export_dir, "overall/meeting_topics.csv")
+export_filename = paste0(export_dir, "overall/meeting_topics_k",k,".csv")
 write.csv(meetingtopics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 speechtopics <- individual_topics[which(str_detect(individual_topics$unique_id, "SPEECHp")),]
-export_filename = paste0(export_dir, "overall/speech_topics.csv")
+export_filename = paste0(export_dir, "overall/speech_topics_k",k,".csv")
 write.csv(speechtopics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 articletopics <- individual_topics[which(str_detect(individual_topics$unique_id, "nyt")),]
-export_filename = paste0(export_dir, "overall/article_topics.csv")
+export_filename = paste0(export_dir, "overall/article_topics_k",k,".csv")
 write.csv(articletopics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
@@ -167,7 +195,7 @@ for (kk in 1:k){
 }
 
 stargazer(as.matrix(topic_summary_df), table.placement = "H")
-export_filename = paste0(export_dir, "joint_topics_summary.csv")
+export_filename = paste0(export_dir, "joint_topics_summary_k",k,".csv")
 write.csv(topic_summary_df, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
@@ -187,6 +215,7 @@ meetingtopics <- merge(fedminutes_df[,c("unique_id", "meeting_id", "meet_date","
                                         "quarter", "sentiment")], 
                        individual_topics[which(str_detect(individual_topics$unique_id, "FEDp")),], 
                        by = "unique_id")
+meetingtopics$sentiment <- standardise(meetingtopics$sentiment)
 sent_topics <- which(str_detect(names(meetingtopics), "_sent"))
 meetingtopics[,sent_topics] <- meetingtopics[,sent_topics]*meetingtopics$sentiment
 
@@ -195,10 +224,10 @@ meetingtopics[,sent_topics] <- meetingtopics[,sent_topics]*meetingtopics$sentime
 meetinglevel_qly <- meetingtopics %>%
   select(-c(unique_id, sentiment, meeting_id, meet_date, pub_date)) %>%
   group_by(quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(list(mean))
 meetinglevel_qly <- meetinglevel_qly[order(meetinglevel_qly$quarter),]
 # Export
-write.csv(meetinglevel_qly, paste0(export_dir, "minutes_qly.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(meetinglevel_qly, paste0(export_dir, "minutes_qly_k",k,".csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
 
@@ -206,14 +235,14 @@ write.csv(meetinglevel_qly, paste0(export_dir, "minutes_qly.csv"), fileEncoding 
 meetinglevel_means <- meetingtopics %>%
   select(-c(unique_id, sentiment)) %>%
   group_by(meeting_id,meet_date,pub_date, quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(list(mean))
 meetinglevel_means <- meetinglevel_means[order(meetinglevel_means$meet_date),]
 # Export
-write.csv(meetinglevel_means, paste0(export_dir, "minutes_event.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(meetinglevel_means, paste0(export_dir, "minutes_event_k",k,".csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
 ggplot(meetinglevel_qly) + theme_bw() + 
-  geom_line(aes(x = as.Date(quarter), y = T14))
+  geom_line(aes(x = as.Date(quarter), y = T18))
 
 ############################# Find the means of the speech paragraphs ############################# 
 
@@ -221,6 +250,7 @@ speechtopics <- merge(fedspeeches_df[,c("unique_id", "speech_id", "date",
                                         "quarter", "sentiment")], 
                        individual_topics[which(str_detect(individual_topics$unique_id, "SPEECHp")),], 
                        by = "unique_id")
+speechtopics$sentiment <- standardise(speechtopics$sentiment)
 sent_topics <- which(str_detect(names(speechtopics), "_sent"))
 speechtopics[,sent_topics] <- speechtopics[,sent_topics]*speechtopics$sentiment
 
@@ -245,7 +275,7 @@ write.csv(speechlevel_means, paste0(export_dir, "speeches_event.csv"), fileEncod
 
 
 ggplot(speechlevel_qly) + theme_bw() + 
-  geom_line(aes(x = as.Date(quarter), y = T23))
+  geom_line(aes(x = as.Date(quarter), y = T21))
 
 ############################# Find the means of the weekly newspaper ############################# 
 
@@ -255,6 +285,7 @@ articletopics <- merge(nyt_df[,c("unique_id", "date", "quarter", "subsequent_mee
                                  "recent_speech", "sentiment")], 
                        individual_topics[which(str_detect(individual_topics$unique_id, "nyt")),], 
                        by = "unique_id")
+articletopics$sentiment <- standardise(articletopics$sentiment)
 sent_topics <- which(str_detect(names(articletopics), "_sent"))
 articletopics[,sent_topics] <- articletopics[,sent_topics]*articletopics$sentiment
 
@@ -278,7 +309,7 @@ write.csv(article_qly, paste0(export_dir, "articles_qly.csv"), fileEncoding = "u
 
 
 ggplot(article_qly) + theme_bw() + 
-  geom_line(aes(x = as.Date(quarter), y = T23))
+  geom_line(aes(x = as.Date(quarter), y = T21))
 
 
 # Quite an involved aggregation to get the meeting/speech level topics

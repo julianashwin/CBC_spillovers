@@ -1,0 +1,21 @@
+"Topic","Description","Top.5.Words","mins","speech","nyt"
+"Topic 1"," ","fund, bond, secur, investor, treasuri, invest",0.0449,0.0486,0.0434
+"Topic 2"," ","govern, polit, presid, nation, elect, countri",0.029,0.0454,0.0661
+"Topic 3"," ","bank, european, central, countri, europ, euro",0.0327,0.0475,0.0503
+"Topic 4"," ","bank, loan, credit, financi, mortgag, interest",0.0419,0.079,0.0471
+"Topic 5"," ","percent, year, report, month, last, week",0.0379,0.0367,0.0615
+"Topic 6"," ","new, citi, develop, build, york, project",0.0308,0.0465,0.0569
+"Topic 7"," ","quarter, spend, growth, busi, consum, continu",0.1128,0.0447,0.0311
+"Topic 8"," ","one, peopl, like, get, say, just",0.0289,0.0577,0.0767
+"Topic 9"," ","job, worker, work, year, peopl, employ",0.0364,0.0488,0.0527
+"Topic 10"," ","committe, polici, feder, condit, reserv, monetari",0.1101,0.0687,0.0276
+"Topic 11"," ","compani, busi, year, execut, billion, profit",0.0306,0.046,0.0568
+"Topic 12"," ","unit, trade, china, state, dollar, american",0.0389,0.0433,0.0497
+"Topic 13"," ","presid, offici, administr, issu, state, white",0.0313,0.0575,0.065
+"Topic 14"," ","particip, risk, growth, member, continu, outlook",0.1115,0.0648,0.0268
+"Topic 15"," ","hous, home, year, real, new, estat",0.0401,0.0398,0.0428
+"Topic 16"," ","stock, percent, point, index, fell, rose",0.0365,0.0365,0.063
+"Topic 17"," ","product, industri, oil, manufactur, produc, price",0.046,0.0457,0.0397
+"Topic 18"," ","price, inflat, increas, expect, month, period",0.0894,0.0468,0.0304
+"Topic 19"," ","economi, growth, year, recess, interest, cut",0.0389,0.0514,0.0566
+"Topic 20"," ","tax, state, cut, budget, year, plan",0.0315,0.0446,0.0558
