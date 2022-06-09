@@ -136,7 +136,7 @@ fedminutes_clean$wordcount <- rowSums(as.matrix(fedminutes.dtm))
 
 tfidf_df <- data.frame(term = fedminutes.dtm$dimnames$Terms, 
                        tf = col_sums(fedminutes.dtm), df = col_sums(fedminutes.dtm > 0))
-
+tfidf_df$tfidf <- tfidf_df$tf/tfidf_df$df
 ## Include only the terms that appear in the minutes
 pb = txtProgressBar(min = 1, max = nrow(fedminutes_clean), initial = 1) 
 for (ii in 1:nrow(fedminutes_clean)){

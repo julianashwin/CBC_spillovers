@@ -166,17 +166,17 @@ create_corr_df <- function(total_df, SPF_variables, suffix = "", k = 30){
 }
 
 ggplot(total_df) + theme_bw() +
+  geom_line(aes(x = quarter, y = standardise(T13_speech), color = "speech"), alpha = 0.4) +
+  geom_line(aes(x = quarter, y = standardise(T13_news), color = "news"), alpha = 0.4) + 
   geom_line(aes(x = quarter, y = standardise(T13), color = "mins")) + 
-  geom_line(aes(x = quarter, y = standardise(T13_speech), color = "speech")) +
-  geom_line(aes(x = quarter, y = standardise(T13_news), color = "news")) + 
-  geom_line(aes(x = quarter, y = standardise(CPI_dispersion), color = "spf"))
-cor.test(total_df$T13+total_df$T7, total_df$CPI_dispersion)
+  geom_line(aes(x = quarter, y = standardise(CPI_f1_dispersion), color = "spf"))
+cor.test(total_df$T13, total_df$CPI_dispersion)
 
 
 ggplot(total_df) + theme_bw() +
-  geom_line(aes(x = quarter, y = standardise(T3), color = "mins")) + 
   geom_line(aes(x = quarter, y = standardise(T3_speech), color = "speech")) +
   geom_line(aes(x = quarter, y = standardise(T3_news), color = "news")) + 
+  geom_line(aes(x = quarter, y = standardise(T3), color = "mins")) + 
   geom_line(aes(x = quarter, y = standardise(RGDP_f1_dispersion), color = "spf"))
 cor.test(total_df$T3, total_df$RGDP_dispersion)
 

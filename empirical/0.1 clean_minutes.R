@@ -12,7 +12,7 @@ require(tm)
 require(slam)
 require(SentimentAnalysis)
 require(lubridate)
-
+require(ggplot2)
 
 
 ### Define the directories where raw data is stored and clean will be saved
@@ -22,7 +22,7 @@ raw_dir <- "data/raw_text/"
 
 ############### Minutes ############### 
 
-import_filename <- paste0(raw_dir, "fedminutes_raw.txt")
+import_filename <- paste0(raw_dir, "fedminutes_pre2014.txt")
 fedminutes_all <- readtext(import_filename, encoding = "utf-8")
 #fedminutes_all <- read.table(import_filename, sep="\t", header=TRUE, encoding = "utf-8")
 
@@ -123,6 +123,8 @@ fedminutes.df$month <- month
 
 
 extra_files <- dir(paste0(raw_dir,"minutes_2014onward/"))
+extra_dates <- as.Date(str_remove_all(extra_files, "mins_|.txt"), format = "%d-%m-%Y")
+extra_files <- extra_files[order(extra_dates)]
 
 pb = txtProgressBar(min = 1, max = length(extra_files), initial = 1) 
 for (ii in 1:length(extra_files)){
@@ -173,12 +175,19 @@ fedminutes.df <- fedminutes.df[order(fedminutes.df$meet_date),]
 fedminutes.df <- fedminutes.df[which(fedminutes.df$meet_date >= "1990-01-01"),]
 table(is.na(fedminutes.df$pub_date))
 table(is.na(fedminutes.df$meet_date))
+table(is.na(fedminutes.df$paragraph))
 length(unique(fedminutes.df$document))
+
+summary(nchar(fedminutes.df$paragraph))
+fedminutes.df$nchar <- nchar(fedminutes.df$paragraph)
+fedminutes.df <- fedminutes.df[which(fedminutes.df$nchar > 10),]
 
 
 #View(fedminutes.df[which((str_detect(fedminutes.df$paragraph, "Votes for"))),])
 fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
                                 "Votes against"))), "paragraph"] <- NA
+fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
+                                "Vote against"))), "paragraph"] <- NA
 fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
                                 "Votes for"))), "paragraph"] <- NA
 fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
@@ -187,14 +196,30 @@ fedminutes.df[which((str_detect(fedminutes.df$paragraph,
                                 "Voting for"))), "paragraph"] <- NA
 fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
                                 "Absent and"))), "paragraph"] <- NA
+fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
+                                "^The vote encompassed approval"))), "paragraph"] <- NA
+fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
+                                "^The votes encompassed approval"))), "paragraph"] <- NA
+fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
+                                "^The vote also encompassed approval"))), "paragraph"] <- NA
+fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
+                                "voted as alternate member"))), "paragraph"] <- NA
+fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
+                                "voted as the alternate"))), "paragraph"] <- NA
+fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
+                                "voted as an alternate"))), "paragraph"] <- NA
+fedminutes.df[which((str_detect(fedminutes.df$paragraph, 
+                                "Return to top"))), "paragraph"] <- NA
+
+
+
 
 # Remove all the deleted paragraphs from the dataframe
 fedminutes.df <- fedminutes.df[which(!is.na(fedminutes.df$paragraph)),]
 
 
 plot(table(fedminutes.df$meet_date))
-summary(nchar(fedminutes.df$paragraph))
-fedminutes.df$nchar <- nchar(fedminutes.df$paragraph)
+
 
 # Add unique paragraph identifier
 unique_id <- paste0("FEDp_", 1:nrow(fedminutes.df))
