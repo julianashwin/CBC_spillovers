@@ -20,117 +20,206 @@ require(openxlsx)
 require(lubridate)
 require(zoo)
 
-
-### Define the directories where raw data is stored and clean will be saved
-clean_dir <- "data/"
-export_dir <- "figures/"
-
-# Toggle which variable we will use 
-var_used <- "T"
-# Toggle the topic number (might need to adjust)
-k <- 30
-# Names of topic variables
-variablenames <- paste0(var_used, 1:k)
-
 standardise <- function(x){
   x <- (x - mean(x, na.rm = TRUE))/sd(x, na.rm = TRUE)
   return(x)
 }
 
 
+### Define the directories where raw data is stored and clean will be saved
+clean_dir <- "data/topic_data/"
+##### suffix for files 
+spec <- "_qly"
+spec <- "_full_qly_k30"
+spec <- "_full_qly_k40"
+spec <- "_qly_k30"
+#spec <- "_guid_k30_qly"
+##### ntopics
+k <- 40
+k <- 30
+##### Names of topic variables
+variablenames <- paste0("T", 1:k)
+
+# Import the topic summary for interpretation 
+import_filename =  "data/topic_data/full_topics_summary_k30.csv"
+import_filename =  "data/topic_data/full_topics_summary_k40.csv"
+import_filename =  "data/topic_data/short_topics_summary_k30.csv"
+#import_filename =  "data/topic_data/joint_topics_summary_guid_k30.csv"
+topic_summary <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+
+if (str_detect(spec,"guid")){
+  variablenames <- topic_summary$Topic
+}
+
+
 ############################# Import the topic proportions ############################# 
 
-# Import the minutes data averaged to the quarterly level
-import_filename = "data/topic_data/minutes_qly.csv"
+# Minutes
+import_filename = paste0(clean_dir,"minutes", spec,".csv")
 minutes_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-# Import the minutes data averaged to the quarterly level
-import_filename = "data/topic_data/speeches_qly.csv"
+minutes_df <- minutes_df[,c("quarter", variablenames)]
+topics_df <- minutes_df
+# Speeches
+import_filename = paste0(clean_dir,"speeches", spec,".csv")
 speeches_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 speeches_df[,paste0(variablenames,"_speech")] <- speeches_df[,variablenames]
 speeches_df <- speeches_df[,c("quarter", paste0(variablenames,"_speech"))]
-
-# Import the quarterly article data, averaged over articles
-import_filename =  "data/topic_data/articles_qly.csv"
+# Articles
+import_filename =  paste0(clean_dir,"articles", spec,".csv")
 articles_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 articles_df[,paste0(variablenames,"_news")] <- articles_df[,variablenames]
 articles_df <- articles_df[,c("quarter", paste0(variablenames,"_news"))]
-
 # Combine into one quarterly df
 topics_df <- merge(minutes_df, speeches_df, by = "quarter", all.x = TRUE)
 topics_df <- merge(topics_df, articles_df, by = "quarter", all.x = TRUE)
-total_df <- topics_df
 
-clean_filename = "data/topic_data/joint_topics_qly.csv"
-write.csv(topics_df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-
-
-# Import the topic summary for interpretation 
-import_filename =  "data/topic_data/joint_topics_summary.csv"
-topic_summary <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+# Import SPF data
+spf_df <- read.csv("data/SPF/spf_disp_clean.csv", stringsAsFactors = F)
+SPF_variables <- unique(unlist(str_extract_all(names(spf_df), "[A-Z]+")))
+SPF_variables <- SPF_variables[which(SPF_variables != "TBOND")] 
 
 
-
-############################# Import SPF data ############################# 
-
-
-############################# Match topics with SPF series ############################# 
-
-spf_df <- data.frame(quarter = total_df$quarter)
-# disp = 1 is levels, and 2 is growth
-SPF_variables <- list("NGDP" = 2, "RGDP" = 2, "CPI" = 1, "TBILL" = 1, "EMP" = 2, "UNEMP" = 1, 
-                   "CPROF" = 2, "INDPROD" = 2, "HOUSING" = 2, "RRESINV" = 2, "RNRESIN" = 2, 
-                   "RCONSUM" = 2, "RFEDGOV" = 2, "RSLGOV" = 2)
-for (ii in 1:length(SPF_variables)){
-  code <- names(SPF_variables)[ii]
-  disp_measure <- SPF_variables[[ii]]
-  
-  import_filename <- paste0(clean_dir, "SPF/Dispersion_", disp_measure, ".xlsx")
-  dispersion.df <- data.frame(read_xlsx(import_filename, sheet = code, skip = 9))
-  
-  # Relabel the dispersion at various horizons
-  command <- paste0("dispersion.df$",code,"_dispersion <- dispersion.df$",code,"_D",disp_measure,".T.")
-  eval(parse(text=command))
-  dispersion.df[which(dispersion.df[,paste0(code,"_dispersion")] == "#N/A"),
-                      paste0(code,"_dispersion")] <- NA
-  dispersion.df[,paste0(code,"_dispersion")] <- as.numeric(dispersion.df[,paste0(code,"_dispersion")])
-  
-  for (ff in 1:4){
-    command <- paste0("dispersion.df$",code,"_f",ff,"_dispersion <- dispersion.df$",
-                      code,"_D",disp_measure,".T.",ff,".")
-    eval(parse(text=command))
-    dispersion.df[which(dispersion.df[,paste0(code,"_f",ff,"_dispersion")] == "#N/A"),
-                  paste0(code,"_f",ff,"_dispersion")] <- NA
-    dispersion.df[,paste0(code,"_f",ff,"_dispersion")] <- as.numeric(
-      dispersion.df[,paste0(code,"_f",ff,"_dispersion")])
-  }
-  
-  # Convert dates to quarterly 
-  dispersion.df$Date <- dispersion.df$Survey_Date.T.
-  year <- str_sub(dispersion.df$Date, 1,4)
-  quarter <- str_sub(dispersion.df$Date, 5,6)
-  quarter <- str_replace(quarter, "Q1", "01")
-  quarter <- str_replace(quarter, "Q2", "04")
-  quarter <- str_replace(quarter, "Q3", "07")
-  quarter <- str_replace(quarter, "Q4", "10")
-  date <- paste(year, quarter, "01", sep = "-")
-  
-  dispersion.df$Date <- as.Date(date)
-  dispersion.df$quarter <- floor_date(dispersion.df$Date, "quarter")
-  
-  keep_cols <- c("quarter", names(dispersion.df)[which(str_detect(names(dispersion.df), "_dispersion"))])
-  dispersion.df <- dispersion.df[,keep_cols]
-  
-  spf_df$quarter <- as.Date(spf_df$quarter)
-  dispersion.df$quarter <- as.Date(dispersion.df$quarter)
-  spf_df <- merge(spf_df, dispersion.df, by = "quarter", all.x = TRUE)
-  spf_df$quarter <- as.Date(spf_df$quarter)
-}
-
+# Merge SPF with topics
 spf_df$quarter <- as.Date(spf_df$quarter)
 topics_df$quarter <- as.Date(topics_df$quarter)
 total_df <- merge(spf_df, topics_df, by = "quarter")
 total_df$quarter <- as.Date(total_df$quarter)
+total_df <- total_df[which(total_df$quarter < "2020-01-01"),]
+
+
+
+"
+Match the topics to variables
+"
+topic_summary$SPF_vars <- ""
+
+top_terms <- c("economi", "growth")
+SPF_var <- "NGDP"
+match_vars <- function(topic_summary, SPF_var, top_terms){
+  obs <-   which(str_detect(topic_summary$Top.5.Words, top_terms[1]) & 
+                   str_detect(topic_summary$Top.5.Words, top_terms[2]))
+  topic_summary$SPF_vars[obs] <- paste0(topic_summary$SPF_vars[obs], SPF_var, ",")
+  
+  if (length(obs) < 1){
+    print(paste("No match for", SPF_var))
+  }
+  if (length(obs) > 1){
+    print(paste("Multiple matches for", SPF_var))
+  }
+  return(topic_summary)
+}
+topic_summary <- match_vars(topic_summary, "NGDP", c("economi", "growth"))
+topic_summary <- match_vars(topic_summary, "RGDP", c("economi", "growth"))
+topic_summary <- match_vars(topic_summary, "CPI", c("price", "inflat"))
+#topic_summary <- match_vars(topic_summary, "TBOND", c("treasuri", "yield"))
+topic_summary <- match_vars(topic_summary, "EMP", c("job", "emp"))
+topic_summary <- match_vars(topic_summary, "UNEMP", c("job", "emp"))
+topic_summary <- match_vars(topic_summary, "CPROF", c("earn", "profit")) # c("profit", "compani"))
+topic_summary <- match_vars(topic_summary, "INDPROD", c("industri", "manufac")) #c("industri", "produc"))
+topic_summary <- match_vars(topic_summary, "HOUSING", c("hous", "home"))
+topic_summary <- match_vars(topic_summary, "RRESINV", c("hous", "home"))
+topic_summary <- match_vars(topic_summary, "RNRESIN", c("invest", "capit")) # c("invest", "capit"))
+topic_summary <- match_vars(topic_summary, "RCONSUM", c("spend", "consum"))
+topic_summary <- match_vars(topic_summary, "RFEDGOV", c("tax", "budget"))
+topic_summary <- match_vars(topic_summary, "RSLGOV", c("tax", "budget"))
+
+
+
+panelnames <- c("variable", "quarter", "disp", "disp_f1", "disp_f2", "disp_f3", "disp_f4",
+                "mins", "speeches", "news",
+                "disp_std", "disp_f1_std", "disp_f2_std", "disp_f3_std", "disp_f4_std",
+                "mins_std", "speeches_std", "news_std")
+total_panel <- data.frame(matrix(NA, nrow = 0, ncol = length(panelnames)))
+
+for (spf_var in SPF_variables){
+  # Pull out the relevant SPF variables
+  total_df$disp <- total_df[, paste0(spf_var, "_dispersion")]
+  total_df$disp_f1 <- total_df[, paste0(spf_var, "_f1_dispersion")]
+  total_df$disp_f2 <- total_df[, paste0(spf_var, "_f2_dispersion")]
+  total_df$disp_f3 <- total_df[, paste0(spf_var, "_f3_dispersion")]
+  total_df$disp_f4 <- total_df[, paste0(spf_var, "_f4_dispersion")]
+  
+  # Pull out the relevant topic variables
+  tnum <- which(str_detect(topic_summary$SPF_vars, paste0(spf_var,",")))
+  if (length(tnum) == 1 ){
+    total_df$mins <- total_df[, paste0("T", tnum)]
+    total_df$speeches <- total_df[, paste0("T", tnum, "_speech")]
+    total_df$news <- total_df[, paste0("T", tnum, "_news")]
+  } else if (length(tnum) == 0){
+    print(paste("No topic found for", spf_var)) 
+  } else {
+    print(paste("Multiple topics found for", spf_var)) 
+  }
+  
+  temp_df <- total_df[,c("quarter", "disp", "disp_f1", "disp_f2", "disp_f3", "disp_f4",
+                         "mins", "speeches", "news")]
+  temp_df$disp_std <- standardise(temp_df$disp)
+  temp_df$disp_f1_std <- standardise(temp_df$disp_f1)
+  temp_df$disp_f2_std <- standardise(temp_df$disp_f2)
+  temp_df$disp_f3_std <- standardise(temp_df$disp_f3)
+  temp_df$disp_f4_std <- standardise(temp_df$disp_f4)
+  
+  temp_df$mins_std <- standardise(temp_df$mins)
+  temp_df$speeches_std <- standardise(temp_df$speeches)
+  temp_df$news_std <- standardise(temp_df$news)
+  
+  temp_df$variable <- spf_var
+  
+  temp_df[,panelnames]
+  
+  total_panel <- rbind(total_panel, temp_df)
+}
+
+
+
+
+### Merge in the other macro data
+
+spf_gb_panel <- read.csv("data/spf_gb_panel.csv", stringsAsFactors = FALSE)
+
+spf_gb_panel$quarter <- as.Date(spf_gb_panel$quarter)
+total_panel$quarter <- as.Date(total_panel$quarter)
+
+total_panel <- merge(total_panel, spf_gb_panel, by = c("variable", "quarter"), all.x = T)
+
+obs <- which(total_panel$variable == "CPI")
+cor.test(total_panel$disp[obs], total_panel$mins[obs])
+
+
+total_panel$quarter <- as.Date(total_panel$quarter)
+total_panel$period <- as.numeric(as.factor(total_panel$quarter))
+total_panel <- pdata.frame(data.frame(total_panel), index = c("variable", "period"))
+
+
+
+summary(felm(mins_std ~ disp_std + news_std + speeches_std, total_panel))
+
+summary(felm(mins_std ~ disp_std + news_std + speeches_std, total_panel))
+summary(felm(mins_std_diff ~ disp_std_diff + news_std + speeches_std, total_panel))
+summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable, total_panel))
+summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable + period, total_panel))
+summary(felm(mins_std ~ plm::lag(mins_std,1:8) +  plm::lag(disp_std,0:2)| variable + period, total_panel[which(total_panel$quarter < "2020-01-01"),]))
+
+
+summary(felm(mins_std ~ GB_update_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
+summary(felm(mins_std ~ SPF_update_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
+summary(felm(mins_std ~ GB_now_error_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
+summary(felm(mins_std ~ SPF_now_error_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
+summary(felm(mins_std ~ GB_SPF_now_gap_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
+
+names(total_panel)
+
+summary(felm(mins_std ~ news_std + speeches_std | variable + period, total_panel))
+
+
+SPF_update_abs
+
+total_panel$SPF_update_abs
+
+
+summary(lm(mins_std ~ disp_std + news_std + speeches_std, total_panel))
+
+summary(lm(speeches_std ~ disp_std + mins_std , total_panel))
 
 
 
@@ -138,14 +227,26 @@ total_df$quarter <- as.Date(total_df$quarter)
 Create correlation matrix
 "
 
-create_corr_df <- function(total_df, SPF_variables, suffix = "", k = 30){
-  corr_df <- data.frame(matrix(NA, 30,15))
-  names(corr_df) <- c("topic", names(SPF_variables))
+
+ggplot(total_panel) + theme_bw() + 
+  facet_wrap(variable~., nrow = 4, scales = "free") +
+  geom_line(aes(x = quarter, y = news_std, color = "Speeches"), alpha = 0.3) +
+  geom_line(aes(x = quarter, y = speeches_std, color = "News"), alpha = 0.3) +
+  geom_line(aes(x = quarter, y = mins_std, color = "Minutes")) + 
+  geom_line(aes(x = quarter, y = disp_std, color = "Dispersion")) + 
+  xlab("Date") + ylab("Std. Units")
+
+
+
+
+create_corr_df <- function(total_df, variablenames, SPF_variables, suffix = "", k = 30){
+  corr_df <- data.frame(matrix(NA, k,(length(SPF_variables) + 1)))
+  names(corr_df) <- c("topic", SPF_variables)
   
   corr_df$topic <- paste0("T", 1:k, ".",str_replace_all(topic_summary$Top.5.Words, ", ","."))
   for(ii in 1:nrow(corr_df)){
-    topic_series <- total_df[,paste0("T",ii)]
-    for (spf_var in names(SPF_variables)){
+    topic_series <- total_df[,paste0(variablenames[ii], suffix)]
+    for (spf_var in SPF_variables){
       spf_series <- total_df[,paste0(spf_var, "_dispersion")]
       cor_obj <- cor.test(topic_series, spf_series)
       sig_level <- "{}"
@@ -161,17 +262,44 @@ create_corr_df <- function(total_df, SPF_variables, suffix = "", k = 30){
       corr_df[ii, spf_var]<- paste0(round(cor_obj$estimate,3), sig_level)
     }
   }
-  
+  return(corr_df)
   
 }
 
-ggplot(total_df) + theme_bw() +
-  geom_line(aes(x = quarter, y = standardise(T13_speech), color = "speech"), alpha = 0.4) +
-  geom_line(aes(x = quarter, y = standardise(T13_news), color = "news"), alpha = 0.4) + 
-  geom_line(aes(x = quarter, y = standardise(T13), color = "mins")) + 
-  geom_line(aes(x = quarter, y = standardise(CPI_f1_dispersion), color = "spf"))
-cor.test(total_df$T13, total_df$CPI_dispersion)
+corr_mins1 <- create_corr_df(total_df[which(total_df$quarter < "2017-01-01"),], 
+                             variablenames, SPF_variables, suffix = "", k = k)
+corr_mins <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "", k = k)
+corr_speech <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "_speech", k = k)
+corr_news <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "_news", k = k)
 
+cor.test(total_df$T14, rowMeans((total_df[,c("HOUSING_dispersion", "HOUSING_f1_dispersion",
+                                             "HOUSING_f2_dispersion", "HOUSING_f3_dispersion",
+                                             "HOUSING_f4_dispersion")])))
+cor.test(total_df$T13, rowMeans((total_df[,c("CPI_dispersion", "CPI_f1_dispersion",
+                                             "CPI_f2_dispersion", "CPI_f3_dispersion",
+                                             "CPI_f4_dispersion")])))
+
+cor.test(total_df$T21, total_df$RRESINV_dispersion)
+cor.test(total_df$T21, total_df$HOUSING_dispersion)
+cor.test(total_df$T3, total_df$RGDP_dispersion)
+
+
+
+ggplot(total_df[which(total_df$quarter < "2017-01-01"),]) + theme_bw() +
+  geom_line(aes(x = quarter, y = standardise(T30_speech), color = "speech"), alpha = 0.4) +
+  geom_line(aes(x = quarter, y = standardise(T30_news), color = "news"), alpha = 0.4) + 
+  geom_line(aes(x = quarter, y = standardise(T30), color = "mins")) + 
+  geom_line(aes(x = quarter, y = standardise(EMP_dispersion), color = "spf"))
+
+
+ggplot(total_df) + theme_bw() +
+  geom_line(aes(x = quarter, y = standardise(T21_speech), color = "speech"), alpha = 0.4) +
+  geom_line(aes(x = quarter, y = standardise(T21_news), color = "news"), alpha = 0.4) + 
+  geom_line(aes(x = quarter, y = standardise(T21), color = "mins")) + 
+  geom_line(aes(x = quarter, y = standardise(HOUSING_dispersion), color = "spf"))
+cor.test(total_df$T30, total_df$EMP_dispersion)
+summary(lm(T11 ~ EMP_dispersion + lag(T11-1), total_df))
+summary(lm(T13 ~ CPI_dispersion + lag(T13-1), total_df))
 
 ggplot(total_df) + theme_bw() +
   geom_line(aes(x = quarter, y = standardise(T3_speech), color = "speech")) +

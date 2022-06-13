@@ -51,12 +51,12 @@ rm(nyt_df1,nyt_df2,nyt_df3)
 
 
 ### Combine articles into a corpus with minutes, speeches and some articles
-total_df <- nyt_df[,c("unique_id", "paragraph_clean", "sentiment")]
-total_df <- rbind(total_df, fedminutes_df[,c("unique_id", "paragraph_clean", "sentiment")])
-total_df <- rbind(total_df, fedspeeches_df[,c("unique_id", "paragraph_clean", "sentiment")])
+total_df <- nyt_df[,c("unique_id", "quarter", "paragraph_clean", "sentiment")]
+total_df <- rbind(total_df, fedminutes_df[,c("unique_id", "quarter", "paragraph_clean", "sentiment")])
+total_df <- rbind(total_df, fedspeeches_df[,c("unique_id", "quarter", "paragraph_clean", "sentiment")])
 
-total_df <- merge(total_df, nyt_df[,c("unique_id", "subsequent_meeting", "recent_meeting")],
-                  all.x = TRUE)
+total_df <- merge(total_df, nyt_df[,c("unique_id", "quarter", "subsequent_meeting", "recent_meeting")],
+                  all.x = TRUE, by = c("unique_id", "quarter"))
 total_df <- total_df[order(total_df$unique_id),]
 
 
@@ -72,8 +72,10 @@ total_dtm$dimnames$Docs <- total_df$unique_id
 fed_dtm <- total_dtm[str_detect(total_dtm$dimnames$Docs, "FEDp"),]
 
 table(total_dtm$dimnames$Docs == total_df$unique_id)
-short_obs <- (str_detect(total_df$unique_id, "FEDp") |
-              (str_detect(total_df$unique_id, "nyt") & !is.na(total_df$subsequent_meeting)))# | 
+short_obs <- (((str_detect(total_df$unique_id, "FEDp") |
+              (str_detect(total_df$unique_id, "nyt") & !is.na(total_df$subsequent_meeting)))) & 
+                total_df$quarter < "2018-01-01")
+              
                  #(str_detect(total_df$unique_id, "nyt") & !is.na(total_df$recent_meeting)))
 short_dtm <- total_dtm[short_obs,]
 table(str_detect(short_dtm$dimnames$Docs, "SPEECH"))
@@ -82,14 +84,16 @@ table(str_detect(short_dtm$dimnames$Docs, "SPEECH"))
 
 ############################# Estimate the topics on the paragraphs and articles ############################# 
 
-k <- 20
+k <- 35
 #paragraph_lda <- LDA(total_dtm, k = k, method = "Gibbs", 
 #                     control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
 #full_lda_vem <- LDA(total_dtm, k = k, method = "VEM")
 rm(total_corpus, fed_dtm)
-
+set.seed(1234)
 short_lda_gibbs <- LDA(short_dtm, k = k, method = "Gibbs",
-                     control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
+                     control = list(verbose = 100, burnin = 1000, thin = 50, iter = 20000))
+#full_lda_gibbs <- LDA(total_dtm, k = k, method = "Gibbs",
+#                       control = list(verbose = 100, burnin = 1000, thin = 50, iter = 20000))
 
 
 # paragraph.lda <- LDA(paragraph.dtm, k = k, control = list( verbose = 1))
@@ -97,7 +101,8 @@ paragraph_lda <- short_lda_gibbs
 
 saveRDS(paragraph_lda, file = paste0(export_dir, "overall/short_lda_k",k,".rds"))
 #saveRDS(full_lda_vem, file = paste0(export_dir, "overall/full_lda.rds"))
-#paragraph_lda <- readRDS(file = paste0(export_dir, "overall/short_lda.rds"))
+paragraph_lda <- readRDS(file = paste0(export_dir, "overall/short_lda_k",k,".rds"))
+#paragraph_lda <- readRDS(file = paste0(export_dir, "overall/full_lda_k",k,".rds"))
  
 ### Store the topic beta vectors
 paragraph_topics <- tidy(paragraph_lda, matrix = "beta")
@@ -105,7 +110,7 @@ paragraph_topics
 
 
 # Write the topic vectors to file
-export_filename = paste0(export_dir, "overall/joint_paragraph_topics_k",k,".csv")
+export_filename = paste0(export_dir, "overall/short_paragraph_topics_k",k,".csv")
 write.csv(paragraph_topics, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 #paragraph_topics <- read.csv(export_filename, stringsAsFactors = FALSE)
 
@@ -129,7 +134,7 @@ for (kk in 1:k){
 # Identify the top ten terms for each topic
 top_terms <- paragraph_topics %>%
   group_by(topic) %>%
-  top_n(10,beta) %>%
+  top_n(20,beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
 
@@ -140,17 +145,7 @@ top_terms %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
-ggsave(paste0(fig_dir, "joint_all_topics.pdf"), width = 12, height = 9)
-
-### Store the topic proportion gamma/theta vectors
-paragraph_gamma <- tidy(paragraph_lda, matrix = "gamma")
-paragraph_gamma
-
-
-### Store the topic assignment of each word 
-paragraph_assignments <- augment(paragraph_lda, data = total_dtm)
-
-
+ggsave(paste0(fig_dir, "short_all_topics_k",k,".pdf"), width = 12, height = 9)
 
 
 ############################# Separate out again ############################# 
@@ -186,7 +181,7 @@ topic_summary_df <- data.frame(Topic = paste("Topic", 1:k), Description = " ", T
 
 for (kk in 1:k){
   topic_df <- data.frame(top_terms[which(top_terms$topic == kk),])
-  topic_summary_df$Top.5.Words[kk] <- paste(topic_df$term[1:6], collapse = ", ")
+  topic_summary_df$Top.5.Words[kk] <- paste(topic_df$term[1:12], collapse = ", ")
   
   topic_summary_df$mins[kk] <- round(mean(meetingtopics[,paste0("T",kk)]),4)
   topic_summary_df$speech[kk] <- round(mean(speechtopics[,paste0("T",kk)]),4)
@@ -195,7 +190,7 @@ for (kk in 1:k){
 }
 
 stargazer(as.matrix(topic_summary_df), table.placement = "H")
-export_filename = paste0(export_dir, "joint_topics_summary_k",k,".csv")
+export_filename = paste0(export_dir, "short_topics_summary_k",k,".csv")
 write.csv(topic_summary_df, export_filename, fileEncoding = "utf-8", row.names = FALSE)
 
 
@@ -212,7 +207,7 @@ write.csv(topic_summary_df, export_filename, fileEncoding = "utf-8", row.names =
 ############################# Find the means of the meeting paragraphs ############################# 
 
 meetingtopics <- merge(fedminutes_df[,c("unique_id", "meeting_id", "meet_date","pub_date", 
-                                        "quarter", "sentiment")], 
+                                        "quarter", "sentiment", "wordcount")], 
                        individual_topics[which(str_detect(individual_topics$unique_id, "FEDp")),], 
                        by = "unique_id")
 meetingtopics$sentiment <- standardise(meetingtopics$sentiment)
@@ -222,7 +217,7 @@ meetingtopics[,sent_topics] <- meetingtopics[,sent_topics]*meetingtopics$sentime
 
 # Quarterly time series
 meetinglevel_qly <- meetingtopics %>%
-  select(-c(unique_id, sentiment, meeting_id, meet_date, pub_date)) %>%
+  select(-c(unique_id, sentiment, meeting_id, meet_date, pub_date, wordcount)) %>%
   group_by(quarter) %>%
   summarise_all(list(mean))
 meetinglevel_qly <- meetinglevel_qly[order(meetinglevel_qly$quarter),]
@@ -242,12 +237,12 @@ write.csv(meetinglevel_means, paste0(export_dir, "minutes_event_k",k,".csv"), fi
 
 
 ggplot(meetinglevel_qly) + theme_bw() + 
-  geom_line(aes(x = as.Date(quarter), y = T18))
+  geom_line(aes(x = as.Date(quarter), y = T3))
 
 ############################# Find the means of the speech paragraphs ############################# 
 
 speechtopics <- merge(fedspeeches_df[,c("unique_id", "speech_id", "date", 
-                                        "quarter", "sentiment")], 
+                                        "quarter", "sentiment", "wordcount")], 
                        individual_topics[which(str_detect(individual_topics$unique_id, "SPEECHp")),], 
                        by = "unique_id")
 speechtopics$sentiment <- standardise(speechtopics$sentiment)
@@ -256,33 +251,33 @@ speechtopics[,sent_topics] <- speechtopics[,sent_topics]*speechtopics$sentiment
 
 # Quarterly time series
 speechlevel_qly <- speechtopics %>%
-  select(-c(unique_id, sentiment, speech_id, date)) %>%
+  select(-c(unique_id, sentiment, speech_id, date, wordcount)) %>%
   group_by(quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(list(mean))
 speechlevel_qly <- speechlevel_qly[order(speechlevel_qly$quarter),]
 # Export
-write.csv(speechlevel_qly, paste0(export_dir, "speeches_qly.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(speechlevel_qly, paste0(export_dir, "speeches_qly_k",k,".csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
 # Speech level time series
 speechlevel_means <- speechtopics %>%
   select(-c(unique_id, sentiment)) %>%
   group_by(speech_id, date, quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(list(mean))
 speechlevel_means <- speechlevel_means[order(speechlevel_means$date),]
 # Export
-write.csv(speechlevel_means, paste0(export_dir, "speeches_event.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(speechlevel_means, paste0(export_dir, "speeches_event_k",k,".csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
 ggplot(speechlevel_qly) + theme_bw() + 
-  geom_line(aes(x = as.Date(quarter), y = T21))
+  geom_line(aes(x = as.Date(quarter), y = T24))
 
 ############################# Find the means of the weekly newspaper ############################# 
 
 # Create a data-frame with the key info for each meeting
 articletopics <- merge(nyt_df[,c("unique_id", "date", "quarter", "subsequent_meeting",
                                  "recent_meeting", "subsequent_pub", "recent_pub", "subsequent_speech",
-                                 "recent_speech", "sentiment")], 
+                                 "recent_speech", "sentiment", "wordcount")], 
                        individual_topics[which(str_detect(individual_topics$unique_id, "nyt")),], 
                        by = "unique_id")
 articletopics$sentiment <- standardise(articletopics$sentiment)
@@ -302,10 +297,10 @@ article_qly <- articletopics %>%
   select(-c(unique_id, date, subsequent_meeting,recent_meeting, subsequent_pub, recent_pub, 
             subsequent_speech, recent_speech, sentiment)) %>%
   group_by(quarter) %>%
-  summarise_all(funs(mean))
+  summarise_all(list(mean))
 article_qly <- article_qly[order(article_qly$quarter),]
 # Export
-write.csv(article_qly, paste0(export_dir, "articles_qly.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(article_qly, paste0(export_dir, "articles_qly_k",k,".csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
 ggplot(article_qly) + theme_bw() + 
@@ -348,7 +343,7 @@ for (ii in 1:nrow(article_events)){
   setTxtProgressBar(pb,ii)
 }
 
-write.csv(article_events, paste0(export_dir, "articles_event.csv"), fileEncoding = "utf-8", row.names = FALSE)
+write.csv(article_events, paste0(export_dir, "articles_event_k",k,".csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
 

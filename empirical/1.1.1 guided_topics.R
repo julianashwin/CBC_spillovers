@@ -84,7 +84,7 @@ dict_mins <- dictionary(list(inflation = c("price", "inflat", "oil", "food", "en
                         policy = c("committe", "polici", "monetari", "member")
                         ))
 
-k <- 20
+k <- 30
 
 nresidual <- k - length(dict_mins)
 
@@ -94,16 +94,17 @@ print(terms(slda, 20))
 fedminutes_df$topic <- topics(slda_short)[which(str_detect(names(topics(slda_short)) , "FED"))]
 
 slda_all <- textmodel_lda(dfm_mins, model = slda_short)
-print(terms(slda_all, 10))
-table(topics(slda_all))
 saveRDS(slda_all, file = paste0(export_dir, "overall/guided_lda_k",k,".rds"))
 #slda_all <- readRDS(file = paste0(export_dir, "overall/guided_lda_k",k,".rds"))
 
 
 paragraph_beta <- data.frame(t(slda_all$phi))
 paragraph_beta$term <- rownames(paragraph_beta)
+write.csv(paragraph_beta, paste0(export_dir, "overall/topics_guid_k",k,".csv"), row.names = F)
+
 paragraph_theta <- data.frame((slda_all$theta))
 paragraph_theta$unique_id <- rownames(paragraph_theta)
+
 
 
 
@@ -159,9 +160,34 @@ ggplot(article_qly) + theme_bw() +
 
 
 ### Export
-write.csv(meetinglevel_qly, paste0(export_dir, "articles_guid_k",k,"_qly.csv"), row.names = FALSE)
-write.csv(speechlevel_qly, paste0(export_dir, "articles_guid_k",k,"_qly.csv"), row.names = FALSE)
+write.csv(meetinglevel_qly, paste0(export_dir, "minutes_guid_k",k,"_qly.csv"), row.names = FALSE)
+write.csv(speechlevel_qly, paste0(export_dir, "speeches_guid_k",k,"_qly.csv"), row.names = FALSE)
 write.csv(article_qly, paste0(export_dir, "articles_guid_k",k,"_qly.csv"), row.names = FALSE)
+
+
+
+
+
+## Summarise topics
+paragraph_beta
+
+topicnames <- colnames(paragraph_beta)
+topic_summary_df <- data.frame(Topic = topicnames[1:k], Description = " ", Top.5.Words = "", 
+                               mins = NA, speech = NA, nyt = NA)
+
+for (kk in 1:k){
+  topicname <- topic_summary_df$Topic[kk]
+  paragraph_beta <- paragraph_beta[order(-paragraph_beta[,topicname]),]
+  topic_summary_df$Top.5.Words[kk] <- paste(paragraph_beta$term[1:6], collapse = ", ")
+  
+  topic_summary_df$mins[kk] <- round(mean(meetingtopics[,topicname]),4)
+  topic_summary_df$speech[kk] <- round(mean(speechtopics[,topicname]),4)
+  topic_summary_df$nyt[kk] <- round(mean(articletopics[,topicname]),4)
+  
+}
+export_filename = paste0(export_dir, "joint_topics_summary_guid_k",k,".csv")
+write.csv(topic_summary_df, export_filename, fileEncoding = "utf-8", row.names = FALSE)
+
 
 
 
