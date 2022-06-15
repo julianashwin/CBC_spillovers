@@ -31,7 +31,7 @@ clean_dir <- "data/topic_data/"
 ##### ntopics
 k <- 40
 k <- 30
-k <- 30
+k <- 21
 ##### suffix for files 
 spec <- "_qly"
 spec <- "_full_qly_k30"
@@ -213,7 +213,7 @@ summary(felm(disp_std ~ mins_std + news_std + speeches_std, total_panel))
 summary(felm(mins_std ~ disp_std + news_std + speeches_std, total_panel))
 summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable, total_panel))
 summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable + period, total_panel))
-summary(felm(mins_std ~ plm::lag(disp_std,0) + plm::lag(mins_std,1:8) | variable + period, total_panel))#[which(total_panel$quarter < "2020-01-01"),]))
+summary(felm(mins_std ~ plm::lag(disp_std,0) + plm::lag(mins_std,1) | variable + period, total_panel[which(total_panel$quarter < "2020-01-01"),]))
 
 summary(felm(mins_std ~ disp_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
 summary(felm(mins_std ~ GB_update_abs_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
