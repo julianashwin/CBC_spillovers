@@ -28,15 +28,18 @@ standardise <- function(x){
 
 ### Define the directories where raw data is stored and clean will be saved
 clean_dir <- "data/topic_data/"
+##### ntopics
+k <- 40
+k <- 30
+k <- 30
 ##### suffix for files 
 spec <- "_qly"
 spec <- "_full_qly_k30"
 spec <- "_full_qly_k40"
 spec <- "_qly_k30"
+spec <- paste0("_qly_k",k)
 #spec <- "_guid_k30_qly"
-##### ntopics
-k <- 40
-k <- 30
+
 ##### Names of topic variables
 variablenames <- paste0("T", 1:k)
 
@@ -44,6 +47,7 @@ variablenames <- paste0("T", 1:k)
 import_filename =  "data/topic_data/full_topics_summary_k30.csv"
 import_filename =  "data/topic_data/full_topics_summary_k40.csv"
 import_filename =  "data/topic_data/short_topics_summary_k30.csv"
+import_filename =  paste0("data/topic_data/short_topics_summary_k",k,".csv")
 #import_filename =  "data/topic_data/joint_topics_summary_guid_k30.csv"
 topic_summary <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
@@ -58,7 +62,7 @@ if (str_detect(spec,"guid")){
 import_filename = paste0(clean_dir,"minutes", spec,".csv")
 minutes_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 minutes_df <- minutes_df[,c("quarter", variablenames)]
-topics_df <- minutes_df
+#topics_df <- minutes_df
 # Speeches
 import_filename = paste0(clean_dir,"speeches", spec,".csv")
 speeches_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
@@ -114,12 +118,12 @@ topic_summary <- match_vars(topic_summary, "CPI", c("price", "inflat"))
 #topic_summary <- match_vars(topic_summary, "TBOND", c("treasuri", "yield"))
 topic_summary <- match_vars(topic_summary, "EMP", c("job", "emp"))
 topic_summary <- match_vars(topic_summary, "UNEMP", c("job", "emp"))
-topic_summary <- match_vars(topic_summary, "CPROF", c("earn", "profit")) # c("profit", "compani"))
-topic_summary <- match_vars(topic_summary, "INDPROD", c("industri", "manufac")) #c("industri", "produc"))
+topic_summary <- match_vars(topic_summary, "CPROF", c("corpor|compani", "profit|exec")) # c("profit|exec", "compani"))
+topic_summary <- match_vars(topic_summary, "INDPROD", c("industri", "produc|manufac")) #c("industri", "manufac"))
 topic_summary <- match_vars(topic_summary, "HOUSING", c("hous", "home"))
 topic_summary <- match_vars(topic_summary, "RRESINV", c("hous", "home"))
-topic_summary <- match_vars(topic_summary, "RNRESIN", c("invest", "capit")) # c("invest", "capit"))
-topic_summary <- match_vars(topic_summary, "RCONSUM", c("spend", "consum"))
+topic_summary <- match_vars(topic_summary, "RNRESIN", c("investor", "capit")) # c("invest", "capit"))
+topic_summary <- match_vars(topic_summary, "RCONSUM", c("demand|spend", "consum")) # c("demand", "consum"))
 topic_summary <- match_vars(topic_summary, "RFEDGOV", c("tax", "budget"))
 topic_summary <- match_vars(topic_summary, "RSLGOV", c("tax", "budget"))
 
@@ -146,7 +150,10 @@ for (spf_var in SPF_variables){
     total_df$speeches <- total_df[, paste0("T", tnum, "_speech")]
     total_df$news <- total_df[, paste0("T", tnum, "_news")]
   } else if (length(tnum) == 0){
-    print(paste("No topic found for", spf_var)) 
+    print(paste("No topic found for", spf_var))
+    total_df$mins <- NA
+    total_df$speeches <-NA
+    total_df$news <- NA
   } else {
     print(paste("Multiple topics found for", spf_var)) 
   }
@@ -172,6 +179,15 @@ for (spf_var in SPF_variables){
 
 
 
+ggplot(total_panel) + theme_bw() + 
+  facet_wrap(variable~., nrow = 4, scales = "free") +
+  geom_line(aes(x = quarter, y = news_std, color = "Speeches"), alpha = 0.3) +
+  geom_line(aes(x = quarter, y = speeches_std, color = "News"), alpha = 0.3) +
+  geom_line(aes(x = quarter, y = mins_std, color = "Minutes")) + 
+  geom_line(aes(x = quarter, y = disp_std, color = "Dispersion")) + 
+  xlab("Date") + ylab("Std. Units")
+
+
 
 ### Merge in the other macro data
 
@@ -182,7 +198,7 @@ total_panel$quarter <- as.Date(total_panel$quarter)
 
 total_panel <- merge(total_panel, spf_gb_panel, by = c("variable", "quarter"), all.x = T)
 
-obs <- which(total_panel$variable == "CPI")
+obs <- which(total_panel$variable == "CPROF")
 cor.test(total_panel$disp[obs], total_panel$mins[obs])
 
 
@@ -192,20 +208,46 @@ total_panel <- pdata.frame(data.frame(total_panel), index = c("variable", "perio
 
 
 
-summary(felm(mins_std ~ disp_std + news_std + speeches_std, total_panel))
+summary(felm(disp_std ~ mins_std + news_std + speeches_std, total_panel))
 
 summary(felm(mins_std ~ disp_std + news_std + speeches_std, total_panel))
-summary(felm(mins_std_diff ~ disp_std_diff + news_std + speeches_std, total_panel))
 summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable, total_panel))
 summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable + period, total_panel))
-summary(felm(mins_std ~ plm::lag(mins_std,1:8) +  plm::lag(disp_std,0:2)| variable + period, total_panel[which(total_panel$quarter < "2020-01-01"),]))
+summary(felm(mins_std ~ plm::lag(disp_std,0) + plm::lag(mins_std,1:8) | variable + period, total_panel))#[which(total_panel$quarter < "2020-01-01"),]))
+
+summary(felm(mins_std ~ disp_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
+summary(felm(mins_std ~ GB_update_abs_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
+summary(felm(mins_std ~ SPF_update_abs_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
+summary(felm(mins_std ~ GB_now_error_abs_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
+summary(felm(mins_std ~ SPF_now_error_abs_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
+summary(felm(mins_std ~ GB_SPF_now_gap_abs_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
 
 
-summary(felm(mins_std ~ GB_update_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
-summary(felm(mins_std ~ SPF_update_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
-summary(felm(mins_std ~ GB_now_error_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
-summary(felm(mins_std ~ SPF_now_error_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
-summary(felm(mins_std ~ GB_SPF_now_gap_abs_std + plm::lag(mins_std,1:3) | variable + period, total_panel))
+summary(felm(speeches_std ~ disp_std + plm::lag(speeches_std,1:8) | variable + period, total_panel))
+summary(felm(speeches_std ~ GB_update_abs_std + plm::lag(speeches_std,1:8) | variable + period, total_panel))
+summary(felm(speeches_std ~ SPF_update_abs_std + plm::lag(speeches_std,1:8) | variable + period, total_panel))
+summary(felm(speeches_std ~ GB_now_error_abs_std + plm::lag(speeches_std,1:8) | variable + period, total_panel))
+summary(felm(speeches_std ~ SPF_now_error_abs_std + plm::lag(speeches_std,1:8) | variable + period, total_panel))
+summary(felm(speeches_std ~ GB_SPF_now_gap_abs_std + plm::lag(speeches_std,1:8) | variable + period, total_panel))
+
+
+summary(felm(news_std ~ disp_std + plm::lag(news_std,1:8) | variable + period, total_panel))
+summary(felm(news_std ~ GB_update_abs_std + plm::lag(news_std,1:8) | variable + period, total_panel))
+summary(felm(news_std ~ SPF_update_abs_std + plm::lag(news_std,1:8) | variable + period, total_panel))
+summary(felm(news_std ~ GB_now_error_abs_std + plm::lag(news_std,1:8) | variable + period, total_panel))
+summary(felm(news_std ~ SPF_now_error_abs_std + plm::lag(news_std,1:8) | variable + period, total_panel))
+summary(felm(news_std ~ GB_SPF_now_gap_abs_std + plm::lag(news_std,1:8) | variable + period, total_panel))
+
+
+summary(felm(news_std ~ mins_std + speeches_std + plm::lag(news_std,1:8) | variable + period, total_panel))
+
+
+summary(felm(mins_std ~ GB_SPF_now_gap_abs_std + SPF_now_error_abs_std + 
+               GB_now_error_abs_std + SPF_update_abs_std + 
+               GB_update_abs_std + disp_std + 
+               plm::lag(mins_std,1:8) | variable + period, total_panel))
+
+
 
 names(total_panel)
 
@@ -228,13 +270,6 @@ Create correlation matrix
 "
 
 
-ggplot(total_panel) + theme_bw() + 
-  facet_wrap(variable~., nrow = 4, scales = "free") +
-  geom_line(aes(x = quarter, y = news_std, color = "Speeches"), alpha = 0.3) +
-  geom_line(aes(x = quarter, y = speeches_std, color = "News"), alpha = 0.3) +
-  geom_line(aes(x = quarter, y = mins_std, color = "Minutes")) + 
-  geom_line(aes(x = quarter, y = disp_std, color = "Dispersion")) + 
-  xlab("Date") + ylab("Std. Units")
 
 
 
@@ -272,16 +307,16 @@ corr_mins <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "",
 corr_speech <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "_speech", k = k)
 corr_news <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "_news", k = k)
 
-cor.test(total_df$T14, rowMeans((total_df[,c("HOUSING_dispersion", "HOUSING_f1_dispersion",
+cor.test(total_df$T3, rowMeans((total_df[,c("HOUSING_dispersion", "HOUSING_f1_dispersion",
                                              "HOUSING_f2_dispersion", "HOUSING_f3_dispersion",
                                              "HOUSING_f4_dispersion")])))
-cor.test(total_df$T13, rowMeans((total_df[,c("CPI_dispersion", "CPI_f1_dispersion",
+cor.test(total_df$T3, rowMeans((total_df[,c("CPI_dispersion", "CPI_f1_dispersion",
                                              "CPI_f2_dispersion", "CPI_f3_dispersion",
                                              "CPI_f4_dispersion")])))
 
 cor.test(total_df$T21, total_df$RRESINV_dispersion)
 cor.test(total_df$T21, total_df$HOUSING_dispersion)
-cor.test(total_df$T3, total_df$RGDP_dispersion)
+cor.test(total_df$T3, total_df$CPI_dispersion)
 
 
 
