@@ -1,0 +1,23 @@
+"Topic","Description","Top.5.Words","mins","speech","nyt"
+"Topic 1"," ","new, citi, hous, build, develop, home, york, project, million, area, properti, plan",0.0318,0.0388,0.0493
+"Topic 2"," ","committe, polici, feder, inflat, condit, monetari, direct, reserv, stabil, financi, meet, fund",0.1062,0.0616,0.0236
+"Topic 3"," ","stock, percent, point, index, fell, rose, share, investor, gain, earn, close, analyst",0.0337,0.0328,0.058
+"Topic 4"," ","price, inflat, oil, energi, increas, consum, month, rise, year, cost, higher, produc",0.0629,0.0412,0.0316
+"Topic 5"," ","school, incom, peopl, health, year, care, famili, educ, univers, program, work, american",0.0277,0.0481,0.0496
+"Topic 6"," ","economi, fed, interest, polici, growth, feder, reserv, term, rais, point, expect, short",0.0373,0.0472,0.0445
+"Topic 7"," ","growth, continu, remain, period, expect, declin, term, somewhat, pace, moder, recent, activ",0.1004,0.0441,0.0223
+"Topic 8"," ","fund, bond, secur, investor, invest, treasuri, yield, million, manag, debt, year, billion",0.041,0.0437,0.0409
+"Topic 9"," ","year, economi, last, now, still, recess, even, mani, time, fall, like, much",0.0309,0.0414,0.0508
+"Topic 10"," ","particip, member, risk, recent, effect, note, continu, outlook, like, relat, howev, sever",0.0956,0.0615,0.0252
+"Topic 11"," ","percent, year, report, month, last, week, sinc, increas, show, averag, depart, sale",0.0342,0.0335,0.0561
+"Topic 12"," ","govern, polit, presid, nation, elect, leader, power, countri, vote, support, russia, minist",0.0262,0.0404,0.0619
+"Topic 13"," ","offici, state, administr, presid, new, issu, group, deal, meet, law, rule, white",0.028,0.0552,0.059
+"Topic 14"," ","quarter, spend, consum, sale, product, busi, increas, good, inventori, manufactur, fourth, growth",0.087,0.0387,0.0327
+"Topic 15"," ","bank, european, countri, europ, central, euro, govern, union, germani, german, crisi, debt",0.0294,0.0445,0.0456
+"Topic 16"," ","compani, busi, million, billion, execut, industri, profit, year, oper, share, corpor, manag",0.0278,0.0425,0.0531
+"Topic 17"," ","bank, loan, credit, mortgag, financi, borrow, interest, debt, money, lend, payment, home",0.0399,0.0688,0.0432
+"Topic 18"," ","trade, unit, china, state, dollar, american, foreign, countri, japan, world, export, global",0.0359,0.0398,0.0464
+"Topic 19"," ","tax, cut, budget, state, spend, year, billion, plan, govern, propos, deficit, increas",0.0289,0.0383,0.0498
+"Topic 20"," ","get, like, one, make, say, think, way, peopl, now, time, just, even",0.0268,0.0605,0.062
+"Topic 21"," ","one, peopl, year, like, day, two, now, store, work, time, say, mani",0.0267,0.0379,0.057
+"Topic 22"," ","job, worker, unemploy, labor, employ, wage, work, month, benefit, hire, number, busi",0.0418,0.0393,0.0372

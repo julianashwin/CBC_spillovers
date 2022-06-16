@@ -31,7 +31,7 @@ clean_dir <- "data/topic_data/"
 ##### ntopics
 k <- 40
 k <- 30
-k <- 21
+k <- 29
 ##### suffix for files 
 spec <- "_qly"
 spec <- "_full_qly_k30"
