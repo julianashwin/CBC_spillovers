@@ -1,0 +1,18 @@
+"Topic","Description","Top.5.Words","mins","speech","nyt"
+"Topic 1"," ","compani, busi, industri, year, million, execut, billion, last, oper, profit, corpor, sale",0.0368,0.0524,0.0656
+"Topic 2"," ","committe, polici, feder, inflat, meet, condit, monetari, reserv, expect, period, direct, member",0.1289,0.0768,0.0309
+"Topic 3"," ","particip, growth, continu, recent, activ, remain, member, expect, risk, effect, outlook, improv",0.1261,0.0719,0.0313
+"Topic 4"," ","job, worker, work, peopl, year, school, incom, employ, american, health, mani, pay",0.0408,0.0575,0.0621
+"Topic 5"," ","price, inflat, increas, oil, energi, consum, rise, month, year, measur, higher, expect",0.0828,0.0531,0.0394
+"Topic 6"," ","fund, bond, secur, invest, investor, treasuri, million, yield, year, manag, billion, interest",0.0535,0.0566,0.0492
+"Topic 7"," ","percent, stock, point, index, rose, fell, share, earn, gain, investor, report, expect",0.0429,0.0427,0.0702
+"Topic 8"," ","new, citi, hous, build, develop, home, york, year, project, area, two, million",0.0393,0.0494,0.0637
+"Topic 9"," ","economi, fed, growth, interest, rais, recess, polici, cut, even, term, time, long",0.0445,0.0625,0.0639
+"Topic 10"," ","presid, govern, polit, nation, elect, leader, countri, power, support, state, vote, american",0.0343,0.0522,0.0801
+"Topic 11"," ","quarter, spend, consum, product, growth, increas, busi, continu, declin, remain, pace, sale",0.1225,0.0521,0.0373
+"Topic 12"," ","one, like, peopl, now, time, say, get, just, even, make, way, think",0.0342,0.0634,0.0849
+"Topic 13"," ","bank, loan, financi, credit, mortgag, debt, interest, borrow, money, lend, payment, financ",0.05,0.0822,0.054
+"Topic 14"," ","countri, china, trade, unit, european, dollar, foreign, state, japan, world, europ, currenc",0.0439,0.0513,0.0669
+"Topic 15"," ","tax, state, cut, year, budget, spend, plan, billion, govern, hous, propos, program",0.037,0.0504,0.0629
+"Topic 16"," ","new, offici, state, group, deal, public, issu, rule, includ, plan, law, use",0.0376,0.0819,0.0684
+"Topic 17"," ","percent, year, month, last, report, week, sinc, sale, show, increas, depart, first",0.045,0.0437,0.0693

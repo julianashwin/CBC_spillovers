@@ -19,6 +19,7 @@ require(readxl)
 require(openxlsx)
 require(lubridate)
 require(zoo)
+require(topicdoc)
 
 standardise <- function(x){
   x <- (x - mean(x, na.rm = TRUE))/sd(x, na.rm = TRUE)
@@ -32,6 +33,29 @@ clean_dir <- "data/topic_data/"
 k <- 40
 k <- 30
 k <- 29
+
+
+
+get_siglevel <- function(cor_obj){
+  sig_level <- "{}"
+  if (cor_obj$p.value <= 0.1){
+    sig_level <- "{.}"
+  } 
+  if (cor_obj$p.value <= 0.05){
+    sig_level <- "{..}"
+  }
+  if (cor_obj$p.value <= 0.01){
+    sig_level <- "{...}"
+  }
+  return(sig_level)
+}
+
+
+comp_K_df <- data.frame(K = 15:40, not_matched = NA, double_matched = NA, disp = NA, GB_update = NA,
+                        SPF_update = NA, GB_error = NA, SPF_error = NA, GB_SPF_gap = NA)
+
+
+for (k in 15:40){
 ##### suffix for files 
 spec <- "_qly"
 spec <- "_full_qly_k30"
@@ -115,25 +139,26 @@ match_vars <- function(topic_summary, SPF_var, top_terms){
 topic_summary <- match_vars(topic_summary, "NGDP", c("economi", "growth"))
 topic_summary <- match_vars(topic_summary, "RGDP", c("economi", "growth"))
 topic_summary <- match_vars(topic_summary, "CPI", c("price", "inflat"))
-#topic_summary <- match_vars(topic_summary, "TBOND", c("treasuri", "yield"))
 topic_summary <- match_vars(topic_summary, "EMP", c("job", "emp"))
 topic_summary <- match_vars(topic_summary, "UNEMP", c("job", "emp"))
-topic_summary <- match_vars(topic_summary, "CPROF", c("corpor|compani", "profit|exec")) # c("profit|exec", "compani"))
-topic_summary <- match_vars(topic_summary, "INDPROD", c("industri", "produc|manufac")) #c("industri", "manufac"))
+topic_summary <- match_vars(topic_summary, "CPROF", c("corpor|compani", "profit"))
+topic_summary <- match_vars(topic_summary, "INDPROD", c("industri", "produc|manufac"))
 topic_summary <- match_vars(topic_summary, "HOUSING", c("hous", "home"))
 topic_summary <- match_vars(topic_summary, "RRESINV", c("hous", "home"))
-topic_summary <- match_vars(topic_summary, "RNRESIN", c("investor", "capit")) # c("invest", "capit"))
-topic_summary <- match_vars(topic_summary, "RCONSUM", c("demand|spend", "consum")) # c("demand", "consum"))
+topic_summary <- match_vars(topic_summary, "RNRESIN", c("invest", "capit"))
+topic_summary <- match_vars(topic_summary, "RCONSUM", c("spend", "consum"))
 topic_summary <- match_vars(topic_summary, "RFEDGOV", c("tax", "budget"))
 topic_summary <- match_vars(topic_summary, "RSLGOV", c("tax", "budget"))
 
 
 
 panelnames <- c("variable", "quarter", "disp", "disp_f1", "disp_f2", "disp_f3", "disp_f4",
-                "mins", "speeches", "news",
+                "mins", "speeches", "news", "double_matched",
                 "disp_std", "disp_f1_std", "disp_f2_std", "disp_f3_std", "disp_f4_std",
                 "mins_std", "speeches_std", "news_std")
 total_panel <- data.frame(matrix(NA, nrow = 0, ncol = length(panelnames)))
+
+total_df$double_matched <- NA
 
 for (spf_var in SPF_variables){
   # Pull out the relevant SPF variables
@@ -149,17 +174,23 @@ for (spf_var in SPF_variables){
     total_df$mins <- total_df[, paste0("T", tnum)]
     total_df$speeches <- total_df[, paste0("T", tnum, "_speech")]
     total_df$news <- total_df[, paste0("T", tnum, "_news")]
+    total_df$double_matched <- length(tnum)
   } else if (length(tnum) == 0){
     print(paste("No topic found for", spf_var))
     total_df$mins <- NA
     total_df$speeches <-NA
     total_df$news <- NA
+    total_df$double_matched <- NA
   } else {
-    print(paste("Multiple topics found for", spf_var)) 
+    print(paste("Multiple topics found for", spf_var))
+    total_df$mins <- rowSums(total_df[, paste0("T", tnum)])
+    total_df$speeches <- rowSums(total_df[, paste0("T", tnum, "_speech")])
+    total_df$news <- rowSums(total_df[, paste0("T", tnum, "_news")])
+    total_df$double_matched <- length(tnum)
   }
   
   temp_df <- total_df[,c("quarter", "disp", "disp_f1", "disp_f2", "disp_f3", "disp_f4",
-                         "mins", "speeches", "news")]
+                         "mins", "speeches", "news", "double_matched")]
   temp_df$disp_std <- standardise(temp_df$disp)
   temp_df$disp_f1_std <- standardise(temp_df$disp_f1)
   temp_df$disp_f2_std <- standardise(temp_df$disp_f2)
@@ -188,7 +219,6 @@ ggplot(total_panel) + theme_bw() +
   xlab("Date") + ylab("Std. Units")
 
 
-
 ### Merge in the other macro data
 
 spf_gb_panel <- read.csv("data/spf_gb_panel.csv", stringsAsFactors = FALSE)
@@ -198,7 +228,7 @@ total_panel$quarter <- as.Date(total_panel$quarter)
 
 total_panel <- merge(total_panel, spf_gb_panel, by = c("variable", "quarter"), all.x = T)
 
-obs <- which(total_panel$variable == "CPROF")
+obs <- which(total_panel$variable == "RRESINV")
 cor.test(total_panel$disp[obs], total_panel$mins[obs])
 
 
@@ -206,11 +236,73 @@ total_panel$quarter <- as.Date(total_panel$quarter)
 total_panel$period <- as.numeric(as.factor(total_panel$quarter))
 total_panel <- pdata.frame(data.frame(total_panel), index = c("variable", "period"))
 
+### Fill in table 
+obs <- which(comp_K_df$K == k)
+comp_K_df$not_matched[obs] <- paste(unique(total_panel$variable[which(is.na(total_panel$mins))]), collapse = ",")
+comp_K_df$double_matched[obs] <- paste(unique(total_panel$variable[which(total_panel$double_matched > 1)]), collapse = ",")
+
+test_temp <- cor.test(total_panel$disp_std, total_panel$mins_std)
+comp_K_df$disp[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+
+test_temp <- cor.test(total_panel$GB_update_abs_std, total_panel$mins_std)
+comp_K_df$GB_update[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+
+test_temp <- cor.test(total_panel$SPF_update_abs_std, total_panel$mins_std)
+comp_K_df$SPF_update[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+
+test_temp <- cor.test(total_panel$GB_now_error_abs_std, total_panel$mins_std)
+comp_K_df$GB_error[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+
+test_temp <- cor.test(total_panel$SPF_now_error_abs_std, total_panel$mins_std)
+comp_K_df$SPF_error[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+
+test_temp <- cor.test(total_panel$GB_SPF_now_gap_abs_std, total_panel$mins_std)
+comp_K_df$GB_SPF_gap[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+
+#summary(felm(disp_std ~ mins_std, total_panel))
+
+}
 
 
-summary(felm(disp_std ~ mins_std + news_std + speeches_std, total_panel))
 
-summary(felm(mins_std ~ disp_std + news_std + speeches_std, total_panel))
+### Some topic model stats
+total_dtm <- readRDS("data/topic_data/overall/total_dtm.rds")
+short_dtm <- readRDS("data/topic_data/overall/short_dtm.rds")
+
+temp_df <- data.frame(K = 15:40, loglik = NA, size = NA, dist_corp = NA, dist_df = NA,
+                      prominence = NA, coherence = NA, exclusivity = NA)
+for (ii in 1:nrow(temp_df)){
+  paragraph_lda <- readRDS(file = paste0("data/topic_data/overall/short_lda_k",temp_df$K[ii],".rds"))
+  
+  if (paragraph_lda@n == sum(short_dtm)){
+    diags <- topic_diagnostics(paragraph_lda,short_dtm)
+    temp_df$size[ii] <- mean(diags$topic_size)
+    temp_df$dist_corp[ii] <- mean(diags$dist_from_corpus)
+    temp_df$dist_df[ii] <- mean(diags$tf_df_dist)
+    temp_df$prominence[ii] <- mean(diags$doc_prominence)
+    temp_df$coherence[ii] <- mean(diags$topic_coherence)
+    temp_df$exclusivity[ii] <- mean(diags$topic_exclusivity)
+  }
+  terms(paragraph_lda,10)
+  
+  temp_df$loglik[ii] <- paragraph_lda@loglikelihood
+}
+
+
+comp_K_df1 <- merge(comp_K_df, temp_df, by = "K")
+
+ggplot(comp_K_df1, aes(x= K)) + 
+  geom_line(aes(y = standardise(coherence), color ="Coherence")) +
+  geom_line(aes(y = standardise(exclusivity), color ="Exclusivity")) +
+  geom_line(aes(y = (standardise(coherence) + standardise(exclusivity)), color ="Both"))
+
+
+summary(felm(mins_std ~ plm::lag(mins_std,1) | variable, total_panel))
+
+summary(felm(mins_std ~ plm::lag(mins_std,1) + disp_std + GB_update_abs_std + SPF_update_abs_std +
+               GB_now_error_abs_std + SPF_now_error_abs_std + GB_SPF_now_gap_abs_std | variable, total_panel))
+
+summary(felm(mins_std ~ disp_std, total_panel))
 summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable, total_panel))
 summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable + period, total_panel))
 summary(felm(mins_std ~ plm::lag(disp_std,0) + plm::lag(mins_std,1) | variable + period, total_panel[which(total_panel$quarter < "2020-01-01"),]))
@@ -399,99 +491,6 @@ cor.test(total_df$T5_news, total_df$HOUSING_dispersion)
 # Define a function to import and plot the SPF dispersion data alongside the relevant topic
 
 
-
-
-# Inflation
-total.df <- plot_topicdisp(code = "CPI", descrip = "Inflation", topic = 9, topics.df = topics.df, 
-                           disp_measure = 1, total.df = total.df)
-cor.test(total.df$CPI_dispersion, total.df$CPI_topic_news)
-cor.test(total.df$CPI_dispersion, total.df$CPI_topic_fed)
-
-
-# GDP
-total.df <- plot_topicdisp(code = "NGDP", descrip = "GDP", topic = 20, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$NGDP_dispersion, total.df$NGDP_topic_news)
-cor.test(total.df$NGDP_dispersion, total.df$NGDP_topic_fed)
-
-
-# Employment
-total.df <- plot_topicdisp(code = "EMP", descrip = "Employment", topic = 16, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$EMP_dispersion, total.df$EMP_topic_news)
-cor.test(total.df$EMP_dispersion, total.df$EMP_topic_fed)
-
-# Unemployment
-total.df <- plot_topicdisp(code = "UNEMP", descrip = "Unemployment", topic = 16, topics.df = topics.df, 
-                           disp_measure = 1,total.df = total.df)
-cor.test(total.df$UNEMP_dispersion, total.df$UNEMP_topic_news)
-cor.test(total.df$UNEMP_dispersion, total.df$UNEMP_topic_fed)
-
-# Profit
-total.df <- plot_topicdisp(code = "CPROF", descrip = "Profits", topic = 23, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$CPROF_dispersion, total.df$CPROF_topic_news)
-cor.test(total.df$CPROF_dispersion, total.df$CPROF_topic_fed)
-
-# Industrial production
-total.df <- plot_topicdisp(code = "INDPROD", descrip = "Production", topic = 29, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$INDPROD_dispersion, total.df$INDPROD_topic_news)
-cor.test(total.df$INDPROD_dispersion, total.df$INDPROD_topic_fed)
-
-# Housing/mortgages
-total.df <- plot_topicdisp(code = "HOUSING", descrip = "Housing", topic = 26, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$HOUSING_dispersion, total.df$HOUSING_topic_news)
-cor.test(total.df$HOUSING_dispersion, total.df$HOUSING_topic_fed)
-
-# Interest rates
-total.df <- plot_topicdisp(code = "TBILL", descrip = "Interest", topic = 24, topics.df = topics.df, 
-                           disp_measure = 1,total.df = total.df, fed = TRUE)
-cor.test(total.df$TBILL_dispersion, total.df$TBILL_topic_news)
-cor.test(total.df$TBILL_dispersion, total.df$TBILL_topic_fed)
-cor.test(total.df$TBILL_dispersion, total.df$NGDP_topic_news)
-
-# Real GDP
-total.df <- plot_topicdisp(code = "RGDP", descrip = "RGDP", topic = 20, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$RGDP_dispersion, total.df$TBILL_topic_news)
-cor.test(total.df$RGDP_dispersion, total.df$TBILL_topic_fed)
-
-# Consumption
-total.df <- plot_topicdisp(code = "RCONSUM", descrip = "Consumption", topic = 19, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$RCONSUM_dispersion, total.df$RCONSUM_topic_news)
-cor.test(total.df$RCONSUM_dispersion, total.df$RCONSUM_topic_fed)
-
-# Investment
-total.df <- plot_topicdisp(code = "RNRESIN", descrip = "Investment", topic = 15, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$RNRESIN_dispersion, total.df$RNRESIN_topic_news)
-cor.test(total.df$RNRESIN_dispersion, total.df$RNRESIN_topic_fed)
-
-# Residential
-total.df <- plot_topicdisp(code = "RRESINV", descrip = "Residential", topic = 22, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$RRESINV_dispersion, total.df$RRESINV_topic_news)
-cor.test(total.df$RRESINV_dispersion, total.df$RRESINV_topic_fed)
-
-# Government
-total.df <- plot_topicdisp(code = "RFEDGOV", descrip = "Fiscal", topic = 3, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$RFEDGOV_dispersion, total.df$RFEDGOV_topic_news)
-cor.test(total.df$RFEDGOV_dispersion, total.df$RFEDGOV_topic_fed)
-
-# State Government
-total.df <- plot_topicdisp(code = "RSLGOV", descrip = "State", topic = 3, topics.df = topics.df, 
-                           disp_measure = 2,total.df = total.df)
-cor.test(total.df$RSLGOV_dispersion, total.df$RSLGOV_topic_news)
-cor.test(total.df$RSLGOV_dispersion, total.df$RSLGOV_topic_fed)
-
-
-# Test that GDP and CPI are better fits for their respective topics
-cor.test(total.df$NGDP_dispersion, total.df$CPI_topic_fed)
-cor.test(total.df$CPI_dispersion, total.df$NGDP_topic_fed)
 
 
 
@@ -766,7 +765,6 @@ stargazer(model1_std, model2_std, model3_std, model4_std, model5_std, model6_std
           table.placement = "H", df = FALSE,
           title = "Federal Reserve minutes, NYT articles and SPF forecast dispersion",
           label = "tab:topic_spf_results")
-
 
 
 

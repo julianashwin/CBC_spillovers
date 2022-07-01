@@ -80,18 +80,21 @@ short_obs <- (((str_detect(total_df$unique_id, "FEDp") |
 short_dtm <- total_dtm[short_obs,]
 table(str_detect(short_dtm$dimnames$Docs, "SPEECH"))
 
+saveRDS(total_dtm, file = paste0(export_dir, "overall/total_dtm.rds"))
+saveRDS(short_dtm, file = paste0(export_dir, "overall/short_dtm.rds"))
 
 
 ############################# Estimate the topics on the paragraphs and articles ############################# 
 
-k <- 35
+k <- 28
+for (k in c(28, 30)){
 #paragraph_lda <- LDA(total_dtm, k = k, method = "Gibbs", 
 #                     control = list(verbose = 100, burnin = 1000, thin = 100, iter = 20000))
 #full_lda_vem <- LDA(total_dtm, k = k, method = "VEM")
 rm(total_corpus, fed_dtm)
 set.seed(1234)
 short_lda_gibbs <- LDA(short_dtm, k = k, method = "Gibbs",
-                     control = list(verbose = 100, burnin = 1000, thin = 50, iter = 20000))
+                     control = list(verbose = 1000, burnin = 2000, thin = 10, iter = 10000))
 #full_lda_gibbs <- LDA(total_dtm, k = k, method = "Gibbs",
 #                       control = list(verbose = 100, burnin = 1000, thin = 50, iter = 20000))
 
@@ -346,6 +349,6 @@ for (ii in 1:nrow(article_events)){
 write.csv(article_events, paste0(export_dir, "articles_event_k",k,".csv"), fileEncoding = "utf-8", row.names = FALSE)
 
 
-
+}
 
 ############################# End ############################# 
