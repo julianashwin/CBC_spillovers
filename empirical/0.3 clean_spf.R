@@ -31,7 +31,7 @@ minutes_df <- read.csv("data/clean_text/fedminutes_all.csv", stringsAsFactors = 
 # Initialise SPF dataframe with quarters
 spf_df <- data.frame(quarter = unique(minutes_df$quarter))
 # disp = 1 is levels, and 2 is growth
-SPF_variables <- list("NGDP" = 2, "RGDP" = 2, "CPI" = 1, "TBOND" = 1, "EMP" = 2, "UNEMP" = 1, 
+SPF_variables <- list("NGDP" = 2, "RGDP" = 2, "CPI" = 1, "EMP" = 2, "UNEMP" = 1, 
                       "CPROF" = 2, "INDPROD" = 2, "HOUSING" = 2, "RRESINV" = 2, "RNRESIN" = 2, 
                       "RCONSUM" = 2, "RFEDGOV" = 2, "RSLGOV" = 2)
 for (ii in 1:length(SPF_variables)){
@@ -118,7 +118,7 @@ spf2gb_df[which(spf2gb_df$series == "NGDP"), c("GB_series", "version")] <- c("gN
 spf2gb_df[which(spf2gb_df$series == "RGDP"), c("GB_series", "version")] <- c("gRGDP",2)
 spf2gb_df[which(spf2gb_df$series == "CPI"), c("GB_series", "version")] <- c("gPCPI",1)
 spf2gb_df[which(spf2gb_df$series == "UNEMP"), c("GB_series", "version")] <- c("UNEMP",1)
-spf2gb_df[which(spf2gb_df$series == "EMP"), c("GB_series", "version")] <- c("UNEMP",1)
+spf2gb_df[which(spf2gb_df$series == "EMP"), c("GB_series", "version")] <- c(NA,1)
 spf2gb_df[which(spf2gb_df$series == "CPROF"), c("GB_series", "version")] <- c(NA,1)
 spf2gb_df[which(spf2gb_df$series == "INDPROD"), c("GB_series", "version")] <- c("gIP",2)
 spf2gb_df[which(spf2gb_df$series == "HOUSING"), c("GB_series", "version")] <- c("HSTART",1)
@@ -140,11 +140,8 @@ for (ii in 1:nrow(spf2gb_df)){
   SPF_sheet <- spf2gb_df$series[ii]
   vers <- spf2gb_df$version[ii]
   
-  if (SPF_sheet == "EMP"){
-    SPF_series <- "UNEMP"
-  } else {
-    SPF_series <- SPF_sheet 
-  }
+  SPF_series <- SPF_sheet 
+  
   
   print(paste("Import SPF data from", SPF_sheet))
   if (vers == 1){
@@ -182,7 +179,7 @@ for (ii in 1:nrow(spf2gb_df)){
   if (!is.na(spf2gb_df$GB_series[ii])){
     
     print(paste("Import GB data from", GB_sheet))
-    import_filename <-"data/GreenBook_Row_Format.xlsx"
+    import_filename <-"data/GB/GreenBook_Row_Format.xlsx"
     gb_df <- read_xlsx(import_filename, sheet = GB_sheet, skip = 0)
     # Convert to date
     year <- str_sub(gb_df$DATE, 1,4)
@@ -216,9 +213,29 @@ for (ii in 1:nrow(spf2gb_df)){
   } else {
     
     gb_df <- data.frame(quarter = spf_df[, c("quarter")])
-    gb_df$variable_act <- NA
     gb_df$GB_nowcast <- NA
     gb_df$GB_forecast1 <- NA
+    if (SPF_series == "EMP"){
+      real_data <- read.csv("data/SPF/EMP_data.csv", stringsAsFactors = FALSE)
+      real_data <- real_data[which(str_sub(real_data$DATE, 6,7) %in% c("01","04","07","10")),]
+      real_data$quarter <- as.Date(paste(str_sub(real_data$DATE, 1, 4), 
+                                         str_sub(real_data$DATE, 6, 7), "01", sep = "-"))
+      real_data$variable_act <- as.numeric(str_remove(real_data$EMPLOY22M6, ","))
+      
+      gb_df <- merge(gb_df, real_data[,c("quarter", "variable_act")], by = "quarter")
+      gb_df <- gb_df[which(gb_df$quarter < "2017-01-01"),]
+      
+    } else if (SPF_series == "CPROF"){
+      real_data <- read.csv("data/SPF/CPATAX.csv", stringsAsFactors = FALSE)
+      real_data$quarter <- as.Date(real_data$DATE, format = "%d/%m/%Y")
+      real_data$variable_act <- as.numeric(str_remove(real_data$CPATAX, ","))
+      
+      gb_df <- merge(gb_df, real_data[,c("quarter", "variable_act")], by = "quarter")
+      gb_df <- gb_df[which(gb_df$quarter < "2017-01-01"),]
+      
+    } else {
+      gb_df$variable_act <- NA
+    }
     
   }
   
@@ -229,8 +246,8 @@ for (ii in 1:nrow(spf2gb_df)){
   # Plot to check they look sensible
   ggplot(nowcast_df) + theme_bw() + guides(color=guide_legend(title="Legend")) +
     geom_line(aes(x = quarter, y = variable_act, color = "Actual")) +
-    geom_line(aes(x = quarter, y = GB_forecast1, color = "GB forecast"), linetype = "dashed") +
-    geom_line(aes(x = quarter, y = SPF_forecast1, color = "SPF forecast"), linetype = "dashed") +
+    #geom_line(aes(x = quarter, y = GB_nowcast, color = "GB nowcast"), linetype = "dashed") +
+    geom_line(aes(x = quarter, y = SPF_nowcast, color = "SPF nowcast"), linetype = "dashed") +
     ylab(SPF_sheet) + xlab("Date") + 
     ggtitle(paste("Nowcasts for", SPF_sheet))
   ggsave(paste0("figures/nowcasts/", SPF_sheet, ".pdf"), width = 6, height = 3)
@@ -287,12 +304,12 @@ nowcasts_df <- data.frame(nowcasts_df[,which(!str_detect(names(nowcasts_df), "_f
 nowcasts_df$quarter <- as.Date(nowcasts_df$quarter)
 
 ggplot(nowcasts_df) + theme_bw() + 
-  facet_wrap(variable~., nrow = 4, scales = "free") +
+  facet_wrap(variable~., nrow = 3, scales = "free") +
   geom_line(aes(x = quarter, y = variable_act, color = "Actual")) + 
   geom_line(aes(x = quarter, y = GB_nowcast, color = "GB nowcast"), linetype = "dashed") +
   geom_line(aes(x = quarter, y = SPF_nowcast, color = "SPF nowcast"), linetype = "dashed") +
-  xlab("Date") + ylab("")
-ggsave("figures/nowcasts/all_nowcasts.pdf", width = 8, height = 6)
+  xlab("Quarter") + ylab("")
+ggsave("figures/nowcasts/all_nowcasts.pdf", width = 8, height = 5)
 
 ggplot(nowcasts_df) + theme_bw() + 
   facet_wrap(variable~., nrow = 4, scales = "free") +
@@ -300,7 +317,7 @@ ggplot(nowcasts_df) + theme_bw() +
   geom_line(aes(x = quarter, y = GB_forecast1, color = "GB forecast"), linetype = "dashed") +
   geom_line(aes(x = quarter, y = SPF_forecast1, color = "SPF forecast"), linetype = "dashed") +
   xlab("Date") + ylab("")
-ggsave("figures/nowcasts/all_forecasts.pdf", width = 8, height = 6)
+ggsave("figures/nowcasts/all_forecasts.pdf", width = 8, height = 5)
 
 
 
@@ -354,9 +371,15 @@ cor.test(df$dispersion, df$SPF_update_abs)
 
 write.csv(df, "data/spf_gb_panel.csv", row.names = FALSE)
 
+df <- read.csv("data/spf_gb_panel.csv", stringsAsFactors = FALSE)
 
 
-
+pivot_wider()
+df_wide <- pivot_wider(df, id_cols = c(quarter), names_from = variable, 
+                       names_glue = "{variable}_{.value}",
+                       values_from = c(SPF_nowcast, GB_nowcast))
+plot_df1 <- data.frame(pivot_wider(plot_df1, id_cols = age, names_from = year, names_glue = "{year}_{.value}",
+                                   values_from = c(workforce, population)))
 
 
 "

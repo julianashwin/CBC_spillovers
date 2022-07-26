@@ -148,7 +148,6 @@ function solve_model_q(par::Dict{Symbol,Float64}, s::Array{Float64,1})
 end
 
 
-
 """
 Function that simulates the system without private signal
 """
@@ -277,7 +276,7 @@ colvars = [:ϵ1, :ϵ2, :η1, :η2, :ζ1, :ζ2, :s1, :s2, :ŝ1, :ŝ2, :q1, :q2,
 sim_df = DataFrame(repeat([0.],1000000, length(colvars)), colvars)
 ## Simulate
 par = reset_par()
-#par[:σ_ζ1] = 100;par[:σ_ζ2] = 100;
+#par[:σ_ζ1] = 2;par[:σ_ζ2] = 2;
 sim_df = simulate_model_q(par, sim_df)
 sim_df.s1_bins = round.(sim_df.s1, digits = 1)
 sort!(sim_df, :s1)
@@ -288,7 +287,7 @@ sim_meds = sim_meds[abs.(sim_meds.s1_bins) .<= 5.0,:]
 plt_s1b = histogram2d(sim_df.s1, sim_df.a1, nbins=100, weights = repeat([1/nrow(sim_df)],nrow(sim_df)),
     xlabel = raw"$s_{i,t}$", ylabel = raw"$a_{i,t}$", c=:blues)
 plt_s1b = plot!(sim_meds.s1_bins, sim_meds.a1, label = false, color = :black)
-plot!(colorbar = false, xlims = (-6,6), ylims = (0.,1.), size = (300,300))
+plot!(colorbar = false, xlims = (-6,6), ylims = (0.,1.), size = (400,300))
 display(plt_s1b)
 savefig("model_figs/attention_signal.pdf")
 
@@ -309,7 +308,7 @@ plt_ϵ1 = histogram2d(σ_ϵ1_df.σ_ϵ1, σ_ϵ1_df.a1, nbins=(0.0:0.1:3,0:0.025:1
     weights = repeat([1/nrow(σ_ϵ1_df)],nrow(σ_ϵ1_df)),
     xlabel = raw"$\sigma^2_{\epsilon,i}/\sigma^2_{\epsilon,j}$", ylabel = raw"$a_{i,t}$", c=:blues)
 plt_ϵ1 = plot!(σ_ϵ1_meds.σ_ϵ1, σ_ϵ1_meds.a1, label = false, color = :black)
-plot!(colorbar = false, ylims = (0.,1.), size = (300,300))
+plot!(colorbar = false, ylims = (0.,1.), size = (400,300))
 display(plt_ϵ1)
 savefig("model_figs/attention_epsilon.pdf")
 
@@ -321,7 +320,7 @@ plt_ν1 = histogram2d(σ_ν1_df.σ_ν1, σ_ν1_df.a1, nbins=(0.0:0.1:3,0:0.025:1
     weights = repeat([1/nrow(σ_ν1_df)],nrow(σ_ν1_df)),
     xlabel = raw"$\sigma^2_{\nu,i}/\sigma^2_{\nu,j}$", ylabel = raw"$a_{i,t}$", c=:blues)
 plt_ν1 = plot!(σ_ν1_meds.σ_ν1, σ_ν1_meds.a1, label = false, color = :black)
-plot!(colorbar = false, ylims = (0.,1.), size = (300,300))
+plot!(colorbar = false, ylims = (0.,1.), size = (400,300))
 display(plt_ν1)
 savefig("model_figs/attention_nu.pdf")
 
@@ -333,7 +332,7 @@ plt_ζ1 = histogram2d(σ_ζ1_df.σ_ζ1, σ_ζ1_df.a1,  nbins=(0.0:0.1:3,0:0.025:
     weights = repeat([1/nrow(σ_ζ1_df)],nrow(σ_ζ1_df)),
     xlabel = raw"$\sigma^2_{\zeta,i}/\sigma^2_{\zeta,j}$",ylabel = raw"$a_{i,t}$", c=:blues)
 plt_ζ1 = plot!(σ_ζ1_meds.σ_ζ1, σ_ζ1_meds.a1, label = false, color = :black)
-plot!(colorbar = false, ylims = (0.,1.), size = (300,300))
+plot!(colorbar = false, ylims = (0.,1.), size = (400,300))
 display(plt_ζ1)
 savefig("model_figs/attention_zeta.pdf")
 
