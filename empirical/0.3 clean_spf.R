@@ -303,10 +303,14 @@ nowcasts_df <- data.frame(nowcasts_df[,which(!str_detect(names(nowcasts_df), "_f
 #### Sense check plots
 nowcasts_df$quarter <- as.Date(nowcasts_df$quarter)
 
-ggplot(nowcasts_df) + theme_bw() + 
+ggplot(nowcasts_df) + theme_bw() +
+  theme(legend.position = c(1, 0), legend.justification = c(1, 0)) + 
+  scale_color_manual("Variable", values = c("Actual variable" = "black",
+                                            "Tealbook nowcast" = "darkcyan",
+                                            "SPF nowcast" = "firebrick")) + 
   facet_wrap(variable~., nrow = 3, scales = "free") +
-  geom_line(aes(x = quarter, y = variable_act, color = "Actual")) + 
-  geom_line(aes(x = quarter, y = GB_nowcast, color = "GB nowcast"), linetype = "dashed") +
+  geom_line(aes(x = quarter, y = variable_act, color = "Actual variable"), alpha = 0.8) + 
+  geom_line(aes(x = quarter, y = GB_nowcast, color = "Tealbook nowcast"), linetype = "dashed") +
   geom_line(aes(x = quarter, y = SPF_nowcast, color = "SPF nowcast"), linetype = "dashed") +
   xlab("Quarter") + ylab("")
 ggsave("figures/nowcasts/all_nowcasts.pdf", width = 8, height = 5)
