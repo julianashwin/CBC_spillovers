@@ -46,6 +46,7 @@ clean_filename = paste0(import_dir, "NYT_clean_10s.csv")
 nyt_df3 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 nyt_df <- rbind(nyt_df1, nyt_df2, nyt_df3)
+write.csv(nyt_df[,c("unique_id","date")], "data/clean_text/articles_key.csv", row.names = FALSE)
 rm(nyt_df1,nyt_df2,nyt_df3)
 
 

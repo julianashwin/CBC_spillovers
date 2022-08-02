@@ -20,6 +20,8 @@ require(openxlsx)
 require(lubridate)
 require(zoo)
 require(topicdoc)
+require(urca)
+
 
 standardise <- function(x){
   x <- (x - mean(x, na.rm = TRUE))/sd(x, na.rm = TRUE)
@@ -51,33 +53,42 @@ get_siglevel <- function(cor_obj){
   return(sig_level)
 }
 
-#macro_var <- "GB_update_abs_std"
+#macro_var <- "disp_std"
 #text_var <- "mins_std"
-create_corr_df <- function(total_panel, text_var, macro_var, siglevel = T){
+create_corr_df <- function(total_panel, text_var = "mins_std", macro_var = "disp_std", 
+                           siglevel = T, pval = F){
   
   corr_df <- data.frame(Variable = as.character(unique(total_panel$variable)))
   corr_df[,as.character(unique(total_panel$variable))] <- NA 
   for (ii in 1:nrow(corr_df)){
     var_x <- as.character(corr_df$Variable[ii])
     obs_x <- which(total_panel$variable == var_x)
-    # Dispersion
-    for (jj in 2:ncol(corr_df)){
-      var_y <- names(corr_df)[jj]
-      obs_y <- which(total_panel$variable == var_y)
-      
-      if (any(!is.na(total_panel[obs_y, macro_var]))){
-        test_temp <- cor.test(total_panel[obs_x, text_var], total_panel[obs_y, macro_var])
-        if (siglevel){
-          corr_df[ii,jj] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-        } else {
-          corr_df[ii,jj] <- round(test_temp$estimate,3)
+    if (any(!is.na(total_panel[obs_x, macro_var]))){
+      # Dispersion
+      for (jj in 2:ncol(corr_df)){
+        var_y <- names(corr_df)[jj]
+        obs_y <- which(total_panel$variable == var_y)
+        
+        if (any(!is.na(total_panel[obs_y, text_var]))){
+          test_temp <- cor.test(total_panel[obs_x, macro_var], total_panel[obs_y, text_var])
+          if (siglevel){
+            corr_df[ii,jj] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+          } else {
+            if (pval){
+              corr_df[ii,jj] <- round(test_temp$p.value,3)
+            } else {
+              corr_df[ii,jj] <- round(test_temp$estimate,3)
+            }
+          }
         }
       }
     }
   }
   return(corr_df)
 }
-corr_df  <- create_corr_df(total_panel, "mins_std", "GB_update_abs_std")
+#corr_df  <- create_corr_df(total_panel, "mins_std", "GB_update_abs_std")
+#corr_pval_df  <- create_corr_df(total_panel, "mins_std", "GB_update_abs_std", siglevel = F,
+#                           pval = T)
 
 comp_K_df <- data.frame(K = 15:40, not_matched = NA, double_matched = NA, disp = NA, GB_update = NA,
                         SPF_update = NA, GB_error = NA, SPF_error = NA, GB_SPF_gap = NA,
@@ -141,17 +152,41 @@ for (ii in 1:nrow(topic_summary)){
 import_filename = paste0(clean_dir,"minutes", spec,".csv")
 minutes_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 minutes_df <- minutes_df[,c("quarter", variablenames)]
-#topics_df <- minutes_df
+
+import_filename = paste0(clean_dir,"minutes_event_k",k,".csv")
+minutes_mly <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+minutes_mly$month <- floor_date(as.Date(minutes_mly$meet_date), unit = "months")
+minutes_mly <- minutes_mly[,c("month", variablenames)]
+
+
 # Speeches
 import_filename = paste0(clean_dir,"speeches", spec,".csv")
 speeches_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 speeches_df[,paste0(variablenames,"_speech")] <- speeches_df[,variablenames]
 speeches_df <- speeches_df[,c("quarter", paste0(variablenames,"_speech"))]
+
+import_filename = paste0(clean_dir,"speeches_event_k",k,".csv")
+speeches_mly <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+speeches_mly$month <- floor_date(as.Date(speeches_mly$date), unit = "months")
+speeches_mly <- speeches_mly[,c("month", variablenames)]
+speeches_mly <- aggregate(speeches_mly[,variablenames], by = list(month = speeches_mly$month), FUN = mean)
+
 # Articles
 import_filename =  paste0(clean_dir,"articles", spec,".csv")
 articles_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 articles_df[,paste0(variablenames,"_news")] <- articles_df[,variablenames]
 articles_df <- articles_df[,c("quarter", paste0(variablenames,"_news"))]
+
+articles_key <- read.csv("data/clean_text/articles_key.csv", stringsAsFactors = F)
+
+import_filename = paste0(clean_dir,"overall/article_topics_k",k,".csv")
+articles_mly <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+articles_mly <- merge(articles_key, articles_mly, by = "unique_id")
+articles_mly$month <- floor_date(as.Date(articles_mly$date), unit = "months")
+articles_mly <- articles_mly[,c("month", variablenames)]
+articles_mly <- aggregate(articles_mly[,variablenames], by = list(month = articles_mly$month), FUN = mean)
+
+
 # Combine into one quarterly df
 topics_df <- merge(minutes_df, speeches_df, by = "quarter", all.x = TRUE)
 topics_df <- merge(topics_df, articles_df, by = "quarter", all.x = TRUE)
@@ -167,7 +202,7 @@ spf_df$quarter <- as.Date(spf_df$quarter)
 topics_df$quarter <- as.Date(topics_df$quarter)
 total_df <- merge(spf_df, topics_df, by = "quarter")
 total_df$quarter <- as.Date(total_df$quarter)
-total_df <- total_df[which(total_df$quarter < "2020-01-01"),]
+total_df <- total_df[which(total_df$quarter < "2018-01-01"),]
 
 
 
@@ -222,6 +257,66 @@ if (FALSE){
             title = paste0("Topics for K = ",k))
   
 }
+
+# Stationarity tests 
+topic_summary[,c("tau_mins", "phi1_mins", "phi2_mins","tau_speech", "phi1_speech", "phi2_speech",
+                 "tau_news", "phi1_news", "phi2_news")] <- NA
+
+ur_sig <- function(temp_test , hypoth = "tau3"){
+  temp_test@cval[hypoth,]
+  sig_level <- ""
+  if (abs(temp_test@teststat[,hypoth]) <= abs(temp_test@cval[hypoth,"1pct"])){
+    sig_level <- "{.}"
+  } 
+  if (abs(temp_test@teststat[,hypoth]) <= abs(temp_test@cval[hypoth,"5pct"])){
+    sig_level <- "{..}"
+  }
+  if (abs(temp_test@teststat[,hypoth]) <= abs(temp_test@cval[hypoth,"10pct"])){
+    sig_level <- "{...}"
+  }
+  stat_out <-  paste0(round(temp_test@teststat[,hypoth],2), sig_level)
+  return(stat_out)
+}
+
+for (kk in 1:k){
+  
+  temp_series <- minutes_mly[,paste0("T",kk)]
+  temp_test <- ur.df(temp_series, type = "trend", lags = 1,
+                     selectlags = "AIC")
+  temp_test@testreg
+  topic_summary[kk, "tau_mins"] <- ur_sig(temp_test , hypoth = "tau3")
+  topic_summary[kk, "phi1_mins"] <- ur_sig(temp_test , hypoth = "phi2")
+  topic_summary[kk, "phi2_mins"] <- ur_sig(temp_test , hypoth = "phi3")
+  
+  temp_series <- speeches_mly[,paste0("T",kk)]
+  temp_series <- temp_series[which(!is.na(temp_series))]
+  temp_test <- ur.df(temp_series, type = "trend", lags = 1,
+                     selectlags = "AIC")
+  temp_test@testreg
+  topic_summary[kk, "tau_speech"] <- ur_sig(temp_test , hypoth = "tau3")
+  topic_summary[kk, "phi1_speech"] <- ur_sig(temp_test , hypoth = "phi2")
+  topic_summary[kk, "phi2_speech"] <- ur_sig(temp_test , hypoth = "phi3")
+  
+  temp_series <- articles_mly[,paste0("T",kk)]
+  temp_series <- temp_series[which(!is.na(temp_series))]
+  temp_test <- ur.df(temp_series, type = "trend", lags = 1,
+                     selectlags = "AIC")
+  temp_test@testreg
+  topic_summary[kk, "tau_news"] <- ur_sig(temp_test , hypoth = "tau3")
+  topic_summary[kk, "phi1_news"] <- ur_sig(temp_test , hypoth = "phi2")
+  topic_summary[kk, "phi2_news"] <- ur_sig(temp_test , hypoth = "phi3")
+  
+}
+if (FALSE){
+  print_tab <- topic_summary[,c("Topic","tau_mins", "phi1_mins", "phi2_mins",
+                                "tau_speech", "phi1_speech", "phi2_speech",
+                                "tau_news", "phi1_news", "phi2_news")]
+  #print_tab <- print_tab[which(topic_summary$SPF_vars != ""),]
+  stargazer(as.matrix(print_tab), table.placement = "H", 
+            title = "Augmented Dickey-Fuller unit root test results")
+}
+
+
 
 panelnames <- c("variable", "quarter", "disp", "disp_f1", "disp_f2", "disp_f3", "disp_f4",
                 "mins", "speeches", "news", "double_matched",
@@ -279,23 +374,6 @@ for (spf_var in SPF_variables){
   total_panel <- rbind(total_panel, temp_df)
 }
 
-
-
-ggplot(total_panel) + theme_bw() + 
-  theme(legend.position = c(1, 0), legend.justification = c(1, 0)) + 
-  scale_color_manual("Variable", values = c("FOMC minutes" = "darkblue",
-                                          "FOMC speeches" = "darkgreen",
-                                          "News articles" = "grey",
-                                          "SPF dispersion" = "firebrick")) + 
-  facet_wrap(variable~., nrow = 3, scales = "free") +
-  geom_line(aes(x = quarter, y = news_std, color = "FOMC speeches"), alpha = 0.6) +
-  geom_line(aes(x = quarter, y = speeches_std, color = "News articles"), alpha = 0.6) +
-  geom_line(aes(x = quarter, y = mins_std, color = "FOMC minutes"), alpha = 0.8) + 
-  geom_line(aes(x = quarter, y = disp_std, color = "SPF dispersion"), alpha = 0.8) + 
-  xlab("Date") + ylab("Std. Units")
-#ggsave("figures/fed_media_topics/all_topics.pdf", width = 8, height = 5)
-
-
 ### Merge in the other macro data
 
 spf_gb_panel <- read.csv("data/spf_gb_panel.csv", stringsAsFactors = FALSE)
@@ -312,6 +390,29 @@ total_panel <- merge(total_panel, spf_gb_panel, by = c("variable", "quarter"), a
 total_panel$quarter <- as.Date(total_panel$quarter)
 total_panel$period <- as.numeric(as.factor(total_panel$quarter))
 total_panel <- pdata.frame(data.frame(total_panel), index = c("variable", "period"))
+
+
+ggplot(total_panel) + theme_bw() + 
+  theme(legend.position = c(1, 0), legend.justification = c(1, 0)) + 
+  scale_color_manual("Variable", values = c("FOMC minutes" = "darkblue",
+                                            "FOMC speeches" = "darkgreen",
+                                            "News articles" = "grey",
+                                            "SPF dispersion" = "firebrick")) + 
+  facet_wrap(variable~., nrow = 3, scales = "free") +
+  geom_line(aes(x = quarter, y = news_std, color = "FOMC speeches"), alpha = 0.6) +
+  geom_line(aes(x = quarter, y = speeches_std, color = "News articles"), alpha = 0.6) +
+  geom_line(aes(x = quarter, y = mins_std, color = "FOMC minutes"), alpha = 0.8) + 
+  geom_line(aes(x = quarter, y = disp_std, color = "SPF dispersion"), alpha = 0.8) + 
+  xlab("Date") + ylab("Std. Units") + scale_x_date(date_labels = "%y")
+#ggsave("figures/fed_media_topics/all_topics.pdf", width = 8, height = 5)
+
+if (FALSE){
+  clean_filename = "data/topics_forecasts_panel.csv"
+  write.csv(total_panel, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+}
+
+
+
 
 ### Fill in table 
 obs <- which(comp_K_df$K == k)
@@ -407,28 +508,30 @@ corr_df <- data.frame(Variable = unique(total_panel$variable),
 for (ii in 1:nrow(corr_df)){
   varname <- as.character(corr_df$Variable[ii])
   obs <- which(total_panel$variable == varname)
-  # Dispersion
-  test_temp <- cor.test(total_panel$disp_std[obs], total_panel$mins_std[obs])
-  corr_df$disp_mins[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-  test_temp <- cor.test(total_panel$disp_std[obs], total_panel$speeches_std[obs])
-  corr_df$disp_speech[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-  test_temp <- cor.test(total_panel$disp_std[obs], total_panel$news_std[obs])
-  corr_df$disp_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-  # GB update
-  if (!(varname %in% c("EMP", "CPROF"))){
-    test_temp <- cor.test(total_panel$GB_update_abs_std[obs], total_panel$mins_std[obs])
-    corr_df$GB_up_mins[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-    test_temp <- cor.test(total_panel$GB_update_abs_std[obs], total_panel$speeches_std[obs])
-    corr_df$GB_up_speech[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-    test_temp <- cor.test(total_panel$GB_update_abs_std[obs], total_panel$news_std[obs])
-    corr_df$GB_up_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-    # GB error
-    test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$mins_std[obs])
-    corr_df$GB_err_mins[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-    test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$speeches_std[obs])
-    corr_df$GB_err_speech[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-    test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$news_std[obs])
-    corr_df$GB_err_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+  if (any(!is.na(total_panel$mins_std[obs]))){
+    # Dispersion
+    test_temp <- cor.test(total_panel$disp_std[obs], total_panel$mins_std[obs])
+    corr_df$disp_mins[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+    test_temp <- cor.test(total_panel$disp_std[obs], total_panel$speeches_std[obs])
+    corr_df$disp_speech[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+    test_temp <- cor.test(total_panel$disp_std[obs], total_panel$news_std[obs])
+    corr_df$disp_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+    # GB update
+    if (!(varname %in% c("EMP", "CPROF"))){
+      test_temp <- cor.test(total_panel$GB_update_abs_std[obs], total_panel$mins_std[obs])
+      corr_df$GB_up_mins[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+      test_temp <- cor.test(total_panel$GB_update_abs_std[obs], total_panel$speeches_std[obs])
+      corr_df$GB_up_speech[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+      test_temp <- cor.test(total_panel$GB_update_abs_std[obs], total_panel$news_std[obs])
+      corr_df$GB_up_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+      # GB error
+      test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$mins_std[obs])
+      corr_df$GB_err_mins[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+      test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$speeches_std[obs])
+      corr_df$GB_err_speech[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+      test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$news_std[obs])
+      corr_df$GB_err_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+    }
   }
 }
 if (FALSE){
@@ -437,14 +540,55 @@ if (FALSE){
   
 }
 
-corr_mins_disp  <- create_corr_df(total_panel, "mins_std", "disp_std",)
+corr_disp  <-  create_corr_df(total_panel, text_var = "mins_std", macro_var = "disp_std",)
+corr_up <- create_corr_df(total_panel, text_var = "mins_std", macro_var = "GB_update_abs_std")
+corr_err <- create_corr_df(total_panel, text_var = "mins_std", macro_var = "GB_now_error_abs_std")
+corr_mat <- rbind(corr_disp, corr_up, corr_err)
 if (FALSE){
-  stargazer(as.matrix(corr_mins_disp), table.placement = "H", column.sep.width = "0pt", 
+  stargazer(as.matrix(corr_mat), table.placement = "H", column.sep.width = "0pt", 
             title = paste0("Correlation of SPF dispersion with focus of FOMC minutes"))
   
 }
-panel_short <- total_panel[which(total_panel$quarter < "2017-01-01"),]
-corr_mins_disp_mat <- create_corr_df(total_panel, "mins_std", "GB_update_abs_std", siglevel = F)
+
+# Dispersion
+corr_est <- create_corr_df(total_panel, "mins_std", "disp_std", siglevel = F)
+corr_est <- as.matrix(corr_est[,2:ncol(corr_est)])
+corr_pvals <- create_corr_df(total_panel, "mins_std", "disp_std", siglevel = F, pval = T)
+corr_pvals <- as.matrix(corr_pvals[,2:ncol(corr_pvals)])
+mean(diag(corr_est), na.rm = T)
+mean(odiag(corr_est), na.rm = T)
+mean(diag(corr_pvals), na.rm = T)
+mean(odiag(corr_pvals), na.rm = T)
+
+# GB_update
+corr_est <- create_corr_df(total_panel, "mins_std", "GB_update_abs_std", siglevel = F)
+corr_est <- as.matrix(corr_est[,2:ncol(corr_est)])
+corr_pvals <- create_corr_df(total_panel, "mins_std", "GB_update_abs_std", siglevel = F, pval = T)
+corr_pvals <- as.matrix(corr_pvals[,2:ncol(corr_pvals)])
+mean(diag(corr_est), na.rm = T)
+mean(odiag(corr_est), na.rm = T)
+mean(diag(corr_pvals), na.rm = T)
+mean(odiag(corr_pvals), na.rm = T)
+
+# GB_error
+corr_est <- create_corr_df(total_panel, "mins_std", "GB_now_error_abs_std", siglevel = F)
+corr_est <- as.matrix(corr_est[,2:ncol(corr_est)])
+corr_pvals <- create_corr_df(total_panel, "mins_std", "GB_now_error_abs_std", siglevel = F, pval = T)
+corr_pvals <- as.matrix(corr_pvals[,2:ncol(corr_pvals)])
+mean(diag(corr_est), na.rm = T)
+mean(odiag(corr_est), na.rm = T)
+mean(diag(corr_pvals), na.rm = T)
+mean(odiag(corr_pvals), na.rm = T)
+
+corr_mins_disp_pvals <- create_corr_df(total_panel, "mins_std", "disp_std", siglevel = F, 
+                                     pval = T)
+
+corr_mins_disp_mat <- create_corr_df(total_panel, "mins_std", "disp_std", siglevel = F)
+corr_mins_disp_mat <- as.matrix(corr_mins_disp_mat[,2:ncol(corr_mins_disp_mat)])
+mean(diag(corr_mins_disp_mat), na.rm = T)
+mean(odiag(corr_mins_disp_mat), na.rm = T)
+
+corr_mins_disp_mat <- create_corr_df(total_panel, "mins_std", "GB_now_error_abs_std", siglevel = F)
 corr_mins_disp_mat <- as.matrix(corr_mins_disp_mat[,2:ncol(corr_mins_disp_mat)])
 mean(diag(corr_mins_disp_mat), na.rm = T)
 mean(odiag(corr_mins_disp_mat), na.rm = T)
@@ -584,9 +728,8 @@ summary(felm(mins_std ~ plm::lag(mins_std,1) + disp_std + GB_update_abs_std + SP
                GB_now_error_abs_std + SPF_now_error_abs_std + GB_SPF_now_gap_abs_std | variable, total_panel))
 
 summary(felm(mins_std ~ disp_std, total_panel))
-summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable, total_panel))
-summary(felm(mins_std ~ disp_std + news_std + speeches_std | variable + period, total_panel))
-summary(felm(mins_std ~ plm::lag(disp_std,0) + plm::lag(mins_std,1) | variable + period, total_panel[which(total_panel$quarter < "2020-01-01"),]))
+summary(felm(mins_std ~ plm::lag(disp_std,0) + plm::lag(mins_std,1) | variable + period, total_panel))
+summary(felm(mins_std ~ plm::lag(disp_std,0) + plm::lag(mins_std,1:8) | variable + period, total_panel))
 
 summary(felm(mins_std ~ disp_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
 summary(felm(mins_std ~ GB_update_abs_std + plm::lag(mins_std,1:8) | variable + period, total_panel))
@@ -615,401 +758,13 @@ summary(felm(news_std ~ GB_SPF_now_gap_abs_std + plm::lag(news_std,1:8) | variab
 summary(felm(news_std ~ mins_std + speeches_std + plm::lag(news_std,1:8) | variable + period, total_panel))
 
 
+summary(felm(mins_std ~ GB_now_error_abs_std + GB_update_abs_std + disp_std + 
+               plm::lag(mins_std,1:8) | variable + period, total_panel))
+
 summary(felm(mins_std ~ GB_SPF_now_gap_abs_std + SPF_now_error_abs_std + 
                GB_now_error_abs_std + SPF_update_abs_std + 
                GB_update_abs_std + disp_std + 
                plm::lag(mins_std,1:8) | variable + period, total_panel))
-
-
-
-names(total_panel)
-
-summary(felm(mins_std ~ news_std + speeches_std | variable + period, total_panel))
-
-
-SPF_update_abs
-
-total_panel$SPF_update_abs
-
-
-summary(lm(mins_std ~ disp_std + news_std + speeches_std, total_panel))
-
-summary(lm(speeches_std ~ disp_std + mins_std , total_panel))
-
-
-
-"
-Create correlation matrix
-"
-
-
-
-
-
-
-
-
-
-corr_mins1 <- create_corr_df(total_df[which(total_df$quarter < "2017-01-01"),], 
-                             variablenames, SPF_variables, suffix = "", k = k)
-corr_mins <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "", k = k)
-corr_speech <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "_speech", k = k)
-corr_news <- create_corr_df(total_df, variablenames, SPF_variables, suffix = "_news", k = k)
-
-cor.test(total_df$T3, rowMeans((total_df[,c("HOUSING_dispersion", "HOUSING_f1_dispersion",
-                                             "HOUSING_f2_dispersion", "HOUSING_f3_dispersion",
-                                             "HOUSING_f4_dispersion")])))
-cor.test(total_df$T3, rowMeans((total_df[,c("CPI_dispersion", "CPI_f1_dispersion",
-                                             "CPI_f2_dispersion", "CPI_f3_dispersion",
-                                             "CPI_f4_dispersion")])))
-
-cor.test(total_df$T21, total_df$RRESINV_dispersion)
-cor.test(total_df$T21, total_df$HOUSING_dispersion)
-cor.test(total_df$T3, total_df$CPI_dispersion)
-
-
-
-ggplot(total_df[which(total_df$quarter < "2017-01-01"),]) + theme_bw() +
-  geom_line(aes(x = quarter, y = standardise(T30_speech), color = "speech"), alpha = 0.4) +
-  geom_line(aes(x = quarter, y = standardise(T30_news), color = "news"), alpha = 0.4) + 
-  geom_line(aes(x = quarter, y = standardise(T30), color = "mins")) + 
-  geom_line(aes(x = quarter, y = standardise(EMP_dispersion), color = "spf"))
-
-
-ggplot(total_df) + theme_bw() +
-  geom_line(aes(x = quarter, y = standardise(T21_speech), color = "speech"), alpha = 0.4) +
-  geom_line(aes(x = quarter, y = standardise(T21_news), color = "news"), alpha = 0.4) + 
-  geom_line(aes(x = quarter, y = standardise(T21), color = "mins")) + 
-  geom_line(aes(x = quarter, y = standardise(HOUSING_dispersion), color = "spf"))
-cor.test(total_df$T30, total_df$EMP_dispersion)
-summary(lm(T11 ~ EMP_dispersion + lag(T11-1), total_df))
-summary(lm(T13 ~ CPI_dispersion + lag(T13-1), total_df))
-
-ggplot(total_df) + theme_bw() +
-  geom_line(aes(x = quarter, y = standardise(T3_speech), color = "speech")) +
-  geom_line(aes(x = quarter, y = standardise(T3_news), color = "news")) + 
-  geom_line(aes(x = quarter, y = standardise(T3), color = "mins")) + 
-  geom_line(aes(x = quarter, y = standardise(RGDP_f1_dispersion), color = "spf"))
-cor.test(total_df$T3, total_df$RGDP_dispersion)
-
-
-
-ggplot(spf_df) + theme_bw() +
-  geom_line(aes(x = quarter, y = log(NGDP_dispersion), color = "0")) + 
-  geom_line(aes(x = quarter, y = log(NGDP_f1_dispersion), color = "1")) + 
-  geom_line(aes(x = quarter, y = log(NGDP_f2_dispersion), color = "2")) + 
-  geom_line(aes(x = quarter, y = log(NGDP_f3_dispersion), color = "3")) +
-  geom_line(aes(x = quarter, y = log(NGDP_f4_dispersion), color = "4"))
-  
-ggplot() + theme_bw() +
-  geom_line(data = total_df, aes(x = quarter, y = standardise(T13 + T27), color = "mins")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_f1_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_f2_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_f3_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(NGDP_f4_dispersion), color = "SPF"))
-cor.test(total_df$T27+total_df$T13, total_df$NGDP_dispersion)  
-
-ggplot() + theme_bw() +
-  geom_line(data = total_df, aes(x = quarter, y = standardise(T9), color = "mins")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f1_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f2_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f3_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f4_dispersion), color = "SPF"))
-
-ggplot() + theme_bw() +
-  geom_line(data = total_df, aes(x = quarter, y = standardise(T8), color = "mins")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f1_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f2_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f3_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(CPI_f4_dispersion), color = "SPF"))
-cor.test(total_df$T8, total_df$CPI_dispersion)  
-
-ggplot() + theme_bw() +
-  geom_line(data = total_df, aes(x = quarter, y = standardise(T5_news), color = "mins")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f1_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f2_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f3_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f4_dispersion), color = "SPF"))
-cor.test(total_df$T5_news, total_df$HOUSING_dispersion)  
-
-
-
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f1_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f2_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f3_dispersion), color = "SPF")) + 
-  geom_line(data = spf_df, aes(x = quarter, y = standardise(HOUSING_f4_dispersion), color = "SPF"))
-cor.test(total_df$T5_news, total_df$HOUSING_dispersion)  
-
-# Define a function to import and plot the SPF dispersion data alongside the relevant topic
-
-
-
-
-
-############################# Create panel df with topics and SPF disp ############################# 
-
-series <- c("CPI", "NGDP", "RGDP", "EMP", "UNEMP", "CPROF", "INDPROD", "HOUSING", "TBILL",
-            "RCONSUM", "RNRESIN", "RRESINV", "RFEDGOV", "RSLGOV")
-
-### Keep only the topics which are matched to an SPF series
-command <- paste0("total.panel <- select(total.df, quarter, ", 
-                  paste(paste0("starts_with(\"", series, "\")"), collapse = ", "), ")")
-eval(parse(text=command))
-
-### Gather into panel 
-total.panel <- gather(total.panel, topic, value, -quarter)
-
-total.panel$series <- NA
-for (s in series){
-  total.panel[which(str_detect(total.panel$topic, s)),"series"] <- s
-}
-
-total.panel$type <- NA
-for (t in c("dispersion", "f1_dispersion", "fed", "news")){
-  total.panel[which(str_detect(total.panel$topic, t)),"type"] <- t
-}
-
-### Spread back to get dispersion, fed and news measures for each series
-total.panel <- spread(total.panel, type, value)
-total.panel <- select(total.panel, -topic)
-
-total.panel <- total.panel %>%
-  group_by(quarter, series) %>% 
-  summarise_all(funs(mean), na.rm = TRUE)
-
-### Normalise by series
-total_means <- total.panel %>%
-  group_by(series) %>% 
-  select(-quarter) %>%
-  summarise_all(funs(mean, sd), na.rm = TRUE)
-
-total.panel <- merge(total.panel, total_means, by = "series")
-total.panel$dispersion_std <- (total.panel$dispersion - total.panel$dispersion_mean)/total.panel$dispersion_sd
-total.panel$f1_dispersion_std <- (total.panel$f1_dispersion - total.panel$f1_dispersion_mean)/total.panel$f1_dispersion_sd
-total.panel$fed_std <- (total.panel$fed - total.panel$fed_mean)/total.panel$fed_sd
-total.panel$news_std <- (total.panel$news - total.panel$news_mean)/total.panel$news_sd
-
-
-
-clean_filename = "data/topics_forecasts_panel.csv"
-write.csv(total.panel, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-total.panel <- read.csv("data/topics_forecasts_panel.csv", stringsAsFactors = FALSE)
-
-### Convert to 
-total.panel$quarter <- as.Date(total.panel$quarter)
-total.panel$period <- as.numeric(as.factor(total.panel$quarter))
-total.panel <- pdata.frame(data.frame(total.panel), index = c("series", "period"))
-
-
-############################# Cross-correlation matrix for the series ############################# 
-test1 <- cor.test(total.df$NGDP_dispersion, total.df$CPI_topic_fed)
-test1$estimate
-test1 <- cor.test(total.df$CPI_topic_fed, total.df$NGDP_dispersion)
-test1$estimate
-cor.test(total.df$CPI_topic_news, total.df$NGDP_dispersion)
-cor.test(total.df$NGDP_topic_fed, total.df$CPI_dispersion)
-cor.test(total.df$NGDP_topic_news, total.df$CPI_dispersion)
-cor.test(total.df$NGDP_topic_news, total.df$CPI_topic_news)
-cor.test(total.df$CPROF_topic_fed, total.df$CPROF_dispersion)
-cor.test(total.df$RCONSUM_topic_fed, total.df$RCONSUM_dispersion)
-cor.test(total.df$HOUSING_topic_news, total.df$HOUSING_dispersion)
-cor.test(total.df$INDPROD_topic_news, total.df$INDPROD_dispersion)
-
-
-
-
-series <- as.character(unique(total.panel$series))
-
-
-### Correlation matrix for Fed topics
-fed.cor.matrix <- data.frame(matrix(NA, nrow = 3*length(series), ncol = (1+length(series))))
-fed.cor.matrix.est <- matrix(NA, nrow = length(series), ncol = (length(series)))
-fed.cor.matrix.pval <- matrix(NA, nrow = length(series), ncol = (length(series)))
-split_rows <- paste(as.vector(paste(series, "x n", "x n x")))
-split_rows <- paste(split_rows, collapse = "")
-split_rows <- (str_split(split_rows, "x"))[[1]]
-colnames(fed.cor.matrix) <- c("Series", series)
-fed.cor.matrix$Series <- str_replace_all(split_rows[1:42], "n", "")
-
-i <- 1
-k <- 1
-s <- series[1]
-t <- series[1]
-for (s in series){
-  
-  # Dispersion series
-  disp_series <- total.panel[which(total.panel$series == s), "dispersion"]
-  j <- 2
-  for (t in series){
-    
-    
-    fed_series <- total.panel[which(total.panel$series == t), "fed"]
-    
-    correlation <- cor.test(disp_series, fed_series)
-    
-    est <- round(correlation$estimate, 3)
-    p_val <- round(correlation$p.value, 3)
-    
-    fed.cor.matrix.est[k,(j-1)] <- est
-    fed.cor.matrix.pval[k,(j-1)] <- p_val
-    
-    if (p_val <= 0.01){
-      stars <- "$^{***}$"
-    } else if (p_val <= 0.05){
-      stars <- "$^{**}$"
-    } else if (p_val <= 0.1){
-      stars <- "$^{*}$"
-    } else {
-      stars <- ""
-    }
-    
-    entry <- paste0(est, stars)
-    p_val <- paste0("(", p_val, ")")
-    
-    fed.cor.matrix[i,j] <- entry
-    fed.cor.matrix[i+1,j] <- p_val
-    
-    print(paste(s,t, i, j, est))
-    
-    j <- j + 1
-  }
-  
-  i <- i + 3
-  k <- k + 1
-}
-
-stargazer(as.matrix(fed.cor.matrix), title = "SPF dispersion and FOMC topic correlation matrix")
-
-N <- nrow(fed.cor.matrix.est)*nrow(fed.cor.matrix.est)
-N_offdiag <- N - nrow(fed.cor.matrix.est)
-N_diag <- nrow(fed.cor.matrix.est)
-
-
-est_diag <- sum(diag(fed.cor.matrix.est))/N_diag
-est_offdiag <- (sum(fed.cor.matrix.est) - sum(diag(fed.cor.matrix.est)))/N_offdiag
-pval_diag <- sum(diag(fed.cor.matrix.pval))/N_diag
-pval_offdiag <- (sum(fed.cor.matrix.pval) - sum(diag(fed.cor.matrix.pval)))/N_offdiag
-
-
-
-
-
-
-
-
-
-### Correlation matrix for NYT topics
-nyt.cor.matrix <- data.frame(matrix(NA, nrow = 3*length(series), ncol = (1+length(series))))
-nyt.cor.matrix.est <- matrix(NA, nrow = length(series), ncol = (length(series)))
-nyt.cor.matrix.pval <- matrix(NA, nrow = length(series), ncol = (length(series)))
-split_rows <- paste(as.vector(paste(series, "x n", "x n x")))
-split_rows <- paste(split_rows, collapse = "")
-split_rows <- (str_split(split_rows, "x"))[[1]]
-colnames(nyt.cor.matrix) <- c("Series", series)
-nyt.cor.matrix$Series <- str_replace_all(split_rows[1:42], "n", "")
-
-i <- 1
-k <- 1
-s <- series[1]
-t <- series[1]
-for (s in series){
-  
-  # 
-  disp_series <- total.panel[which(total.panel$series == s), "dispersion"]
-  j <- 2
-  for (t in series){
-    
-    
-    nyt_series <- total.panel[which(total.panel$series == t), "news"]
-    
-    correlation <- cor.test(disp_series, nyt_series)
-    
-    est <- round(correlation$estimate, 3)
-    p_val <- round(correlation$p.value, 3)
-    
-    nyt.cor.matrix.est[k,(j-1)] <- est
-    nyt.cor.matrix.pval[k,(j-1)] <- p_val
-    
-    if (p_val <= 0.01){
-      stars <- "$^{***}$"
-    } else if (p_val <= 0.05){
-      stars <- "$^{**}$"
-    } else if (p_val <= 0.1){
-      stars <- "$^{*}$"
-    } else {
-      stars <- ""
-    }
-    
-    entry <- paste0(est, stars)
-    p_val <- paste0("(", p_val, ")")
-    
-    nyt.cor.matrix[i,j] <- entry
-    nyt.cor.matrix[i+1,j] <- p_val
-    
-    print(paste(s,t, i, j, est))
-    
-    j <- j + 1
-  }
-  
-  i <- i + 3
-  k <- k + 1
-}
-
-stargazer(as.matrix(nyt.cor.matrix), title = "SPF dispersion and NYT topic correlation matrix")
-
-N <- nrow(nyt.cor.matrix.est)*nrow(nyt.cor.matrix.est)
-N_offdiag <- N - nrow(nyt.cor.matrix.est)
-N_diag <- nrow(nyt.cor.matrix.est)
-
-
-est_diag <- sum(diag(nyt.cor.matrix.est))/N_diag
-est_offdiag <- (sum(nyt.cor.matrix.est) - sum(diag(nyt.cor.matrix.est)))/N_offdiag
-pval_diag <- sum(diag(nyt.cor.matrix.pval))/N_diag
-pval_offdiag <- (sum(nyt.cor.matrix.pval) - sum(diag(nyt.cor.matrix.pval)))/N_offdiag
-
-
-
-
-
-############################# Panel analysis on the series ############################# 
-
-
-# SPF dispersion as depepndent variable
-model1 <- felm(dispersion ~ plm::lag(fed, 0) + plm::lag(news, 0) | series, data = total.panel)
-summary(model1)
-model1_std <- felm(dispersion_std ~ plm::lag(fed_std, 0) + plm::lag(news_std, 0) | series, data = total.panel)
-summary(model1_std)
-model2 <- felm(dispersion ~ plm::lag(fed, 0:1) + plm::lag(news, 0:1) + plm::lag(dispersion, 1:3) | series + period, data = total.panel)
-summary(model2)
-model2_std <- felm(dispersion_std ~ plm::lag(fed_std, 0:1) + plm::lag(news_std, 0:1) + plm::lag(dispersion_std, 1:3) | series + period, data = total.panel)
-summary(model2_std)
-
-
-# Fed topics as dependent variable
-model3 <- felm(fed ~ plm::lag(dispersion, 0) | series, data = total.panel)
-summary(model3)
-model3_std <- felm(fed_std ~ plm::lag(dispersion_std, 0) + plm::lag(news_std, 0) | series, data = total.panel)
-summary(model3_std)
-model4 <- felm(fed ~ plm::lag(dispersion, 0:1)  + plm::lag(fed, 1:3) | series + quarter, data = total.panel)
-summary(model4)
-model4_std <- felm(fed_std ~ plm::lag(dispersion_std, -1:1) +  plm::lag(news_std, -1:1) +
-                     plm::lag(fed_std, 1:3) | series + quarter, data = total.panel)
-summary(model4_std)
-
-# NYT articles as dependent variable
-model5 <- felm(news ~ plm::lag(dispersion, 0) | series, data = total.panel)
-summary(model5)
-model5_std <- felm(news_std ~ plm::lag(dispersion_std, 0) | series, data = total.panel)
-summary(model5_std)
-model6 <- felm(news ~ plm::lag(dispersion, -1:1) + plm::lag(news, 1:3) | series + quarter, data = total.panel)
-summary(model6)
-model6_std <- felm(news_std ~ plm::lag(dispersion_std, -1:1) + plm::lag(news_std, 1:3) | series + quarter, data = total.panel)
-summary(model6_std)
 
 
 # Table
@@ -1022,6 +777,28 @@ stargazer(model1_std, model2_std, model3_std, model4_std, model5_std, model6_std
           table.placement = "H", df = FALSE,
           title = "Federal Reserve minutes, NYT articles and SPF forecast dispersion",
           label = "tab:topic_spf_results")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
