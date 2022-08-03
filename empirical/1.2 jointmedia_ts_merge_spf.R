@@ -204,6 +204,10 @@ total_df <- merge(spf_df, topics_df, by = "quarter")
 total_df$quarter <- as.Date(total_df$quarter)
 total_df <- total_df[which(total_df$quarter < "2018-01-01"),]
 
+if (FALSE){
+  clean_filename = "data/topics_qly_baseline.csv"
+  write.csv(total_df, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+}
 
 
 "

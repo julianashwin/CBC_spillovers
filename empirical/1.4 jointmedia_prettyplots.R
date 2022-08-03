@@ -11,81 +11,64 @@ require(ggwordcloud)
 require(lfe)
 require(plm)
 
-
-
-col_theme <- scale_color_manual("Legend", 
-                                values = c("SPF dispersion" = "darkturquoise", 
-                                           "Fed minutes" = "blue3", 
-                                           "GB update" = "forestgreen",
-                                           "NYT articles" = "dimgray"))
-
-# Import the minutes data estimated at the meeting level
-import_filename <- "data/jointmedia_spf_gb_panel.csv"
-panel_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-# Import the topic betas
-import_filename <- "data/joint_paragraph_topics.csv"
-topicwords_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-import_filename = "data/joint_topics_quarterly.csv"
-topics_quarterly_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-
-
-"
-Add topwords to panel data
-"
-
-summary_df <- data.frame(topic = unique(topicwords_df$topic), topwords = "")
-for (kk in unique(topicwords_df$topic)){
-  topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
-  topick_df <- topick_df[order(-topick_df$beta),]
-  topick_df <- topick_df[1:5,]
-  summary_df$topwords[which(summary_df$topic == kk)] <- paste(topick_df$term, collapse = ", ")
+standardise <- function(x){
+  x <- (x - mean(x, na.rm = TRUE))/sd(x, na.rm = TRUE)
+  return(x)
 }
 
-panel_df <- merge(panel_df, summary_df, by = "topic", all.x = TRUE)
-panel_df <- pdata.frame(panel_df, index = c("series", "period"))
+
+col_theme <- scale_color_manual("Legend", values = c("FOMC minutes" = "darkblue",
+                                                       "FOMC speeches" = "darkgreen",
+                                                       "News articles" = "darkgrey"))
+col_theme2 <- scale_color_manual("Legend", values = c("FOMC minutes" = "darkblue",
+                                                       "SPF dispersion" = "firebrick",
+                                                       "Tealbook update" = "darkcyan"))
+                                                       #",Tealbook error" = "darkgoldenrod3"))
+
+# Import the minutes data estimated at the meeting level
+import_filename <- "data/topics_forecasts_panel.csv"
+panel_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+panel_df <- pdata.frame(panel_df, index = c("variable", "period"))
 panel_df$quarter <- as.Date(panel_df$quarter)
 
-series <- as.character(unique(panel_df$series))
+# Import the topic betas
+import_filename <- "data/topic_data/overall/short_paragraph_topics_k29.csv"
+topicwords_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+
+# Import the topic betas
+import_filename <- "data/topic_data/short_topics_summary_k29.csv"
+topicsummary_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+
+import_filename = "data/topics_qly_baseline.csv"
+qly_series_df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+qly_series_df$quarter <- as.Date(qly_series_df$quarter)
+
+spf_gb_df <- read.csv("data/spf_gb_panel.csv", stringsAsFactors = FALSE)
+spf_gb_df$quarter <- as.Date(spf_gb_df$quarter)
+spf_gb_df <- pivot_wider(spf_gb_df, id_cols = c(quarter), names_from = variable, 
+                            names_glue = "{variable}_{.value}",
+                            values_from = c(variable_act, dispersion, GB_update_abs_std,
+                                            GB_now_error_abs))
+qly_series_df <- merge(qly_series_df[,which(!str_detect(names(qly_series_df), "disper"))], 
+                       spf_gb_df, by = "quarter")
+qly_series_df$quarter <- as.Date(qly_series_df$quarter)
+
+variables <- as.character(unique(panel_df$variable))
 
 "
 Check correlations
 "
-series_df <- panel_df[which(panel_df$series == "NGDP"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "RGDP"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "CPI"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "EMP"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "UNEMP"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "INDPROD"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "HOUSING"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "RRESINV"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "RCONSUM"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "RNRESIN"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "RFEDGOV"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
-series_df <- panel_df[which(panel_df$series == "RSLGOV"),]
-cor.test(series_df$fed_std, series_df$GB_update_abs_std)
+series_df <- panel_df[which(panel_df$variable == "NGDP"),]
+cor.test(series_df$mins_std, series_df$GB_update_abs_std)
 
 
 
 "
 Manually do all the word clouds like a loser (need to adjust size so that all the words fit)
 "
-ss <- series[1]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+ss <- variables[1]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 3
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -95,11 +78,20 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 5, height = 5)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 5.3, height = 5.3)
 
-ss <- series[2]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + col_theme2 + 
+  geom_line(aes(y = standardise(T3), color = "FOMC minutes"), alpha = 0.8) +
+  geom_line(aes(y = standardise(CPI_dispersion), color = "SPF dispersion"), alpha = 0.8) +
+  geom_line(aes(y = standardise(CPI_GB_update_abs_std), color = "Tealbook update"), alpha = 0.8) +
+  #geom_line(aes(y = standardise(CPI_GB_now_error_abs), color = "Tealbook error")) +
+  ylab("Std. units") + xlab("Quarter") 
+ggsave(paste0("figures/fed_media_topics/series/CPI_series.pdf"), width = 8, height = 3)
+
+
+ss <- variables[2]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 21
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -109,11 +101,11 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 5.1, height = 5.1)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 5.5, height = 5.5)
 
-ss <- series[3]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+ss <- variables[3]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 29
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -123,12 +115,12 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 5.6, height = 5.6)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.5, height = 6.5)
 
 
-ss <- series[4]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+ss <- variables[4]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 8
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -138,12 +130,23 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 7.1, height = 7.1)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.5, height = 6.5)
+
+ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + 
+  scale_color_manual("Legend", values = c("FOMC minutes" = "darkblue",
+                                                        "SPF dispersion" = "firebrick")) +
+  geom_line(aes(y = standardise(T8), color = "FOMC minutes"), alpha = 0.8) +
+  geom_line(aes(y = standardise(RRESINV_dispersion), color = "SPF dispersion"), alpha = 0.8) +
+  #geom_line(aes(y = standardise(CPI_GB_now_error_abs), color = "Tealbook error")) +
+  ylab("Std. units") + xlab("Quarter") 
+ggsave(paste0("figures/fed_media_topics/series/RRESINV_series.pdf"), width = 8, height = 3)
 
 
-ss <- series[5]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+
+
+ss <- variables[5]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 12
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -153,12 +156,12 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 7.1, height = 7.1)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 8.5, height = 8.5)
 
 
-ss <- series[6]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+ss <- variables[6]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 26
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -168,12 +171,23 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 5.5, height = 5.5)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.8, height = 6.8)
 
 
-ss <- series[7]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + col_theme2 + 
+  geom_line(aes(y = standardise(T26), color = "FOMC minutes"), alpha = 0.8) +
+  geom_line(aes(y = standardise(RGDP_dispersion), color = "SPF dispersion"), alpha = 0.8) +
+  geom_line(aes(y = standardise(RGDP_GB_update_abs_std), color = "Tealbook update"), alpha = 0.8) +
+  #geom_line(aes(y = standardise(RGDP_GB_now_error_abs), color = "Tealbook error")) +
+  ylab("Std. units") + xlab("Quarter") 
+ggsave(paste0("figures/fed_media_topics/series/RGDP_series.pdf"), width = 8, height = 3)
+
+
+
+
+ss <- variables[7]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 18
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -183,12 +197,12 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 7.6, height = 7.6)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 8.0, height = 8.0)
 
 
-ss <- series[8]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+ss <- variables[8]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 13
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -198,12 +212,12 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 6, height = 6)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.8, height = 6.8)
 
 
-ss <- series[10]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+ss <- variables[10]
+series_df <- panel_df[which(panel_df$variable == ss),]
+kk <- 11
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -213,12 +227,14 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 6.5, height = 6.5)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.9, height = 6.9)
 
 
-ss <- series[11]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+
+"
+Finance topic
+"
+kk <- 22
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -228,12 +244,34 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 6, height = 6)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 5.6, height = 5.6)
+
+ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + col_theme + 
+  geom_line(aes(y = standardise(T22), color = "FOMC minutes")) +
+  geom_line(aes(y = standardise(T22_speech), color = "FOMC speeches")) +
+  geom_line(aes(y = standardise(T22_news), color = "News articles")) +
+  ylab("Std. units") + xlab("Quarter") 
+ggsave(paste0("figures/fed_media_topics/series/finance_series.pdf"), width = 8, height = 3)
 
 
-ss <- series[11]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
+#vix_df <- read.csv("data/SPF/VIXCLS.csv", stringsAsFactors = F)
+#vix_df$VIX <- as.numeric(vix_df$VIXCLS)
+#vix_df <- vix_df[complete.cases(vix_df),]
+#vix_df$DATE <- as.Date(vix_df$DATE)
+#vix_df$quarter <- floor_date(vix_df$DATE, unit = "quarters")
+#vix_df <- aggregate(vix_df[,c("VIX", "VIXCLS")], by = list(quarter = vix_df$quarter), FUN = mean)
+
+#plot_df <- merge(qly_series_df, vix_df, by = "quarter")
+#plot_df$quarter <- as.Date(plot_df$quarter)
+
+
+
+
+
+"
+Euro crisis topic
+"
+kk <- 20
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
 topick_df <- topick_df[1:50,]
@@ -243,40 +281,15 @@ ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal(
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 6, height = 6)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 7.9, height = 7.9)
 
+ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + col_theme + 
+  geom_line(aes(y = standardise(T20), color = "FOMC minutes")) +
+  geom_line(aes(y = standardise(T20_speech), color = "FOMC speeches")) +
+  geom_line(aes(y = standardise(T20_news), color = "News articles")) +
+  ylab("Std. units") + xlab("Quarter") 
+ggsave(paste0("figures/fed_media_topics/series/euro_series.pdf"), width = 8, height = 3)
 
-ss <- series[13]
-series_df <- panel_df[which(panel_df$series == ss),]
-kk <- unique(series_df$topic)
-topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
-topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
-topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
-ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
-  geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
-                      grid_size = 1, eccentricity = .9) + 
-  scale_size_area(max_size = 20) +
-  scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/clouds/ts/joint_paragraph_topics", kk,".pdf"), width = 5, height = 5)
-
-
-
-
-
-for (ss in series){
-  series_df <- panel_df[which(panel_df$series == ss),]
-  kk <- unique(series_df$topic)
-  ggplot(series_df, aes(x = quarter)) + theme_minimal() + col_theme + 
-    geom_line(aes(y = fed_std, color = "Fed minutes")) +
-    #geom_line(aes(y = news_std, color = "NYT articles")) +
-    geom_line(aes(y = dispersion_std, color = "SPF dispersion")) +
-    geom_smooth(aes(y = GB_update_abs_std, color = "GB update"), method = "loess") + 
-    ylab("Std. units") + xlab("Quarter") + 
-    ggtitle(paste0(ss, " and Topic ", kk, " (", series_df$topwords[1] ,")"))
-  ggsave(paste0("figures/clouds/ts/joint_ts_", ss,".pdf"), width = 8, height = 4)
-  
-}
 
 
 
@@ -325,18 +338,22 @@ Regression tables
 "
 
 ####### SPF dispersion ####### 
-model1 <- felm(fed_std ~ plm::lag(dispersion_std, 0) | series, data = panel_df)
+model1 <- felm(mins_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
 summary(model1)
-model2 <- felm(fed_std ~ plm::lag(dispersion_std, 0:1)  + plm::lag(fed_std, 1:3)| series + period, data = panel_df)
+model2 <- felm(mins_std ~ plm::lag(disp_std, 0)  + plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
 summary(model2)
-model3 <- felm(news_std ~ plm::lag(dispersion_std, 0) | series, data = panel_df)
+model3 <- felm(speeches_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
 summary(model3)
-model4 <- felm(news_std ~ plm::lag(dispersion_std, 0:1)  + plm::lag(news_std, 1:3)| series + period, data = panel_df)
+model4 <- felm(speeches_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
 summary(model4)
+model5 <- felm(news_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
+summary(model5)
+model6 <- felm(news_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
+summary(model6)
 
 stargazer(model1, model2, model3, model4,
           table.placement = "H", df = FALSE,
-          title = "FOMC minutes, NYT articles and SPF forecast dispersion",
+          title = "Focus and SPF forecast dispersion",
           label = "tab:topic_spf_results")
 
 ####### GB update ####### 
