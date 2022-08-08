@@ -30,19 +30,20 @@ export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 
 import_filename = "data/jointmedia_spf_gb_panel.csv"
+import_filename <- "data/topics_forecasts_panel.csv"
 total.df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
-total.panel <- pdata.frame(total.df, index = c("series", "period"))
+total.panel <- pdata.frame(total.df, index = c("variable", "period"))
 
 
 ## Panel VAR
 var_std <- pvarfeols(
-  dependent_vars = c("dispersion_std","news_std","fed_std"),
+  dependent_vars = c("disp_std","news_std","mins_std"),
   lags = 4,
   #exog_vars,
   transformation = c("fod"),
   data = total.df,
-  panel_identifier = c("series", "period")
+  panel_identifier = c("variable", "period")
 )
 
 
@@ -58,7 +59,7 @@ plot(varone_girf)
 
 #### Manually bootstrap CIs
 ## Options
-individuals <- unique(total.df$series)
+individuals <- unique(total.df$variable)
 ndraws <- 5000
 n_ahead <- 12
 ## Store results
@@ -79,48 +80,48 @@ for (nn in 1:ndraws){
   setTxtProgressBar(pb,nn)
   # Blockwise sample individuals
   sub_inds <- sample(individuals, length(individuals), replace = TRUE)
-  sub.df <- total.df[which(total.df$series == sub_inds[1]),]
+  sub.df <- total.df[which(total.df$variable == sub_inds[1]),]
   for (si in sub_inds[2:length(sub_inds)]){
-    sub.df <- rbind(sub.df, total.df[which(total.df$series == si),])
+    sub.df <- rbind(sub.df, total.df[which(total.df$variable == si),])
   }
   # Estimate VAR by OLS
   var_sub <- pvarfeols(
-    dependent_vars = c("dispersion_std","news_std","fed_std"),
+    dependent_vars = c("disp_std","news_std","mins_std"),
     lags = 4,
     #exog_vars,
     transformation = c("fod"),
     data = sub.df,
-    panel_identifier = c("series", "period")
+    panel_identifier = c("variable", "period")
   )
   # Compute IRFs
   varsub_oirf <- oirf(var_sub, n.ahead = n_ahead)
   varsub_girf <- girf(var_sub, n.ahead = n_ahead, ma_approx_steps = n_ahead)
   
   # Save OIRF results for disp shock
-  oirf_draws[nn,paste0("disp_on_disp_", 1:n_ahead)] <- varsub_oirf$dispersion_std[,"dispersion_std"]
-  oirf_draws[nn,paste0("disp_on_news_", 1:n_ahead)] <- varsub_oirf$dispersion_std[,"news_std"]
-  oirf_draws[nn,paste0("disp_on_fed_", 1:n_ahead)] <- varsub_oirf$dispersion_std[,"fed_std"]
+  oirf_draws[nn,paste0("disp_on_disp_", 1:n_ahead)] <- varsub_oirf$disp_std[,"disp_std"]
+  oirf_draws[nn,paste0("disp_on_news_", 1:n_ahead)] <- varsub_oirf$disp_std[,"news_std"]
+  oirf_draws[nn,paste0("disp_on_fed_", 1:n_ahead)] <- varsub_oirf$disp_std[,"mins_std"]
   # Save OIRF results for news shock
-  oirf_draws[nn,paste0("news_on_disp_", 1:n_ahead)] <- varsub_oirf$news_std[,"dispersion_std"]
+  oirf_draws[nn,paste0("news_on_disp_", 1:n_ahead)] <- varsub_oirf$news_std[,"disp_std"]
   oirf_draws[nn,paste0("news_on_news_", 1:n_ahead)] <- varsub_oirf$news_std[,"news_std"]
-  oirf_draws[nn,paste0("news_on_fed_", 1:n_ahead)] <- varsub_oirf$news_std[,"fed_std"]
+  oirf_draws[nn,paste0("news_on_fed_", 1:n_ahead)] <- varsub_oirf$news_std[,"mins_std"]
   # Save OIRF results for fed shock
-  oirf_draws[nn,paste0("fed_on_disp_", 1:n_ahead)] <- varsub_oirf$fed_std[,"dispersion_std"]
-  oirf_draws[nn,paste0("fed_on_news_", 1:n_ahead)] <- varsub_oirf$fed_std[,"news_std"]
-  oirf_draws[nn,paste0("fed_on_fed_", 1:n_ahead)] <- varsub_oirf$fed_std[,"fed_std"]
+  oirf_draws[nn,paste0("fed_on_disp_", 1:n_ahead)] <- varsub_oirf$mins_std[,"disp_std"]
+  oirf_draws[nn,paste0("fed_on_news_", 1:n_ahead)] <- varsub_oirf$mins_std[,"news_std"]
+  oirf_draws[nn,paste0("fed_on_fed_", 1:n_ahead)] <- varsub_oirf$mins_std[,"mins_std"]
   
   # Save GIRF results for disp shock
-  girf_draws[nn,paste0("disp_on_disp_", 1:n_ahead)] <- varsub_girf$dispersion_std[,"dispersion_std"]
-  girf_draws[nn,paste0("disp_on_news_", 1:n_ahead)] <- varsub_girf$dispersion_std[,"news_std"]
-  girf_draws[nn,paste0("disp_on_fed_", 1:n_ahead)] <- varsub_girf$dispersion_std[,"fed_std"]
+  girf_draws[nn,paste0("disp_on_disp_", 1:n_ahead)] <- varsub_girf$disp_std[,"disp_std"]
+  girf_draws[nn,paste0("disp_on_news_", 1:n_ahead)] <- varsub_girf$disp_std[,"news_std"]
+  girf_draws[nn,paste0("disp_on_fed_", 1:n_ahead)] <- varsub_girf$disp_std[,"mins_std"]
   # Save OIRF results for news shock
-  girf_draws[nn,paste0("news_on_disp_", 1:n_ahead)] <- varsub_girf$news_std[,"dispersion_std"]
+  girf_draws[nn,paste0("news_on_disp_", 1:n_ahead)] <- varsub_girf$news_std[,"disp_std"]
   girf_draws[nn,paste0("news_on_news_", 1:n_ahead)] <- varsub_girf$news_std[,"news_std"]
-  girf_draws[nn,paste0("news_on_fed_", 1:n_ahead)] <- varsub_girf$news_std[,"fed_std"]
+  girf_draws[nn,paste0("news_on_fed_", 1:n_ahead)] <- varsub_girf$news_std[,"mins_std"]
   # Save OIRF results for fed shock
-  girf_draws[nn,paste0("fed_on_disp_", 1:n_ahead)] <- varsub_girf$fed_std[,"dispersion_std"]
-  girf_draws[nn,paste0("fed_on_news_", 1:n_ahead)] <- varsub_girf$fed_std[,"news_std"]
-  girf_draws[nn,paste0("fed_on_fed_", 1:n_ahead)] <- varsub_girf$fed_std[,"fed_std"]
+  girf_draws[nn,paste0("fed_on_disp_", 1:n_ahead)] <- varsub_girf$mins_std[,"disp_std"]
+  girf_draws[nn,paste0("fed_on_news_", 1:n_ahead)] <- varsub_girf$mins_std[,"news_std"]
+  girf_draws[nn,paste0("fed_on_fed_", 1:n_ahead)] <- varsub_girf$mins_std[,"mins_std"]
 
 }
 

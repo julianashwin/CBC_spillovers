@@ -15,24 +15,29 @@ export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 ### Import the SPF-text data panel
 
 import_filename <- "data/jointmedia_spf_gb_panel.csv"
+import_filename <- "data/topics_forecasts_panel.csv"
 total.panel <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
-total.panel <- pdata.frame(total.panel, index = c("series", "period"))
+total.panel <- pdata.frame(total.panel, index = c("variable", "period"))
 
 
 ### Import the media and minutes panel
-
 import_filename = paste(clean_dir, "CBC/mediaminutes_panel.csv", sep = "/")
 full_panel.df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 #full_panel.df <- pdata.frame(full_panel.df, index = c("topic", "meet_date"))
 
-full_panel.df$id_no <- as.numeric(as.factor(full_panel.df$topic))
-full_panel.df$time_no <- as.numeric(as.factor(full_panel.df$meet_date))
+import_filename <- "data/topics_forecasts_panel.csv"
+full_panel.df <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+#full_panel.df <- pdata.frame(full_panel.df, index = c("variable", "period"))
+
+
+full_panel.df$id_no <- as.numeric(as.factor(full_panel.df$variable))
+full_panel.df$time_no <- as.numeric(as.factor(full_panel.df$quarter))
 full_panel.df <- pdata.frame(full_panel.df, index = c("id_no", "time_no"))
-full_panel.df$id_no <- as.numeric((full_panel.df$topic))
-full_panel.df$time_no <- as.numeric((full_panel.df$meet_date))
+full_panel.df$id_no <- as.numeric((full_panel.df$variable))
+full_panel.df$time_no <- as.numeric((full_panel.df$quarter))
 
 
-half_panel.df <- full_panel.df[which(full_panel.df$time_no > 70),]
+#half_panel.df <- full_panel.df[which(full_panel.df$time_no > 70),]
 
 
 ### Do media articles predict the minutes?
@@ -144,11 +149,11 @@ summary(model)
 
 ##
 pvar_model <- 
-  pvarfeols(dependent_vars = c("fed", "news", "dispersion"),
+  pvarfeols(dependent_vars = c("mins_std", "news_std", "disp_std"),
             lags = 3,
             transformation = "demean",
             data = data.frame(total.panel),
-            panel_identifier= c("series", "period"))
+            panel_identifier= c("variable", "period"))
 summary(pvar_model)
 
 
@@ -156,13 +161,13 @@ summary(pvar_model)
 
 
 pvar_gmm <- pvargmm(
-  dependent_vars = c("fed", "news", ),
+  dependent_vars = c("mins_std", "news_std", ),
   lags = 4,
-  predet_vars = c("dispersion"),
+  predet_vars = c("disp_std"),
   exog_vars = c("news"),
   transformation = "fd",
   data = total.panel,
-  panel_identifier = c("series", "quarter"),
+  panel_identifier = c("variable", "quarter"),
   steps = c("twostep"),
   system_instruments = TRUE,
   max_instr_dependent_vars = 99,

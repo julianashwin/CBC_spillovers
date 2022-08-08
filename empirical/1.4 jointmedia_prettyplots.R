@@ -71,14 +71,14 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 3
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 5.3, height = 5.3)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 5, height = 5)
 
 ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + col_theme2 + 
   geom_line(aes(y = standardise(T3), color = "FOMC minutes"), alpha = 0.8) +
@@ -94,7 +94,7 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 21
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
@@ -108,7 +108,7 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 29
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
@@ -123,14 +123,14 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 8
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.5, height = 6.5)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6, height = 6)
 
 ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + 
   scale_color_manual("Legend", values = c("FOMC minutes" = "darkblue",
@@ -149,14 +149,14 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 12
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 8.5, height = 8.5)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 7., height = 7.)
 
 
 ss <- variables[6]
@@ -164,14 +164,14 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 26
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.8, height = 6.8)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6., height = 6.)
 
 
 ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + col_theme2 + 
@@ -190,14 +190,14 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 18
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 8.0, height = 8.0)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 7.0, height = 7.0)
 
 
 ss <- variables[8]
@@ -205,14 +205,14 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 13
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.8, height = 6.8)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6., height = 6.)
 
 
 ss <- variables[10]
@@ -220,14 +220,14 @@ series_df <- panel_df[which(panel_df$variable == ss),]
 kk <- 11
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6.9, height = 6.9)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 6., height = 6.)
 
 
 
@@ -237,14 +237,14 @@ Finance topic
 kk <- 22
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 5.6, height = 5.6)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 5., height = 5.)
 
 ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + col_theme + 
   geom_line(aes(y = standardise(T22), color = "FOMC minutes")) +
@@ -274,14 +274,14 @@ Euro crisis topic
 kk <- 20
 topick_df <- topicwords_df[which(topicwords_df$topic == kk),]
 topick_df <- topick_df[order(-topick_df$beta),]
-topick_df <- topick_df[1:50,]
+topick_df <- topick_df[1:30,]
 topick_df$beta <- 100000*topick_df$beta/sum(topick_df$beta)
 ggplot(topick_df, aes(label = term, size = beta, color = beta)) + theme_minimal() +
   geom_text_wordcloud(rm_outside = TRUE, max_steps = 1, grid_margin = 0.5,
                       grid_size = 1, eccentricity = .9) + 
   scale_size_area(max_size = 20) +
   scale_color_gradient(low = "darkblue", high = "blue")
-ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 7.9, height = 7.9)
+ggsave(paste0("figures/baseline_clouds/cloud_", kk,".pdf"), width = 7.5, height = 7.5)
 
 ggplot(qly_series_df, aes(x = quarter)) + theme_bw() + col_theme + 
   geom_line(aes(y = standardise(T20), color = "FOMC minutes")) +
@@ -492,21 +492,21 @@ stargazer(model1, model2, model3, model4,
 
 
 ####### Throwing shit and seeing what sticks ####### 
-model1 <- felm(fed_std ~ dispersion_std + GB_update_abs_std + SPF_update_abs_std + 
-                 GB_now_error_abs_std + SPF_now_error_abs_std + GB_SPF_now_gap_abs_std 
-               | series, data = panel_df)
+model1 <- felm(mins_std ~ disp_std + GB_update_abs_std + 
+                 GB_now_error_abs_std  
+               | variable, data = panel_df)
 summary(model1)
-model2 <- felm(fed_std ~ dispersion_std + GB_update_abs_std + SPF_update_abs_std + 
-                 GB_now_error_abs_std + SPF_now_error_abs_std + GB_SPF_now_gap_abs_std + 
-                 plm::lag(fed_std, 1:3)| series + period, data = panel_df)
+model2 <- felm(mins_std ~ disp_std + GB_update_abs_std  + 
+                 GB_now_error_abs_std +  
+                 plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
 summary(model2)
-model3 <- felm(news_std ~ dispersion_std + GB_update_abs_std + SPF_update_abs_std + 
+model3 <- felm(news_std ~ disp_std + GB_update_abs_std + SPF_update_abs_std + 
                  GB_now_error_abs_std + SPF_now_error_abs_std + GB_SPF_now_gap_abs_std 
-               | series, data = panel_df)
+               | variable, data = panel_df)
 summary(model3)
-model4 <- felm(news_std ~ dispersion_std + GB_update_abs_std + SPF_update_abs_std + 
+model4 <- felm(news_std ~ disp_std + GB_update_abs_std + SPF_update_abs_std + 
                  GB_now_error_abs_std + SPF_now_error_abs_std + GB_SPF_now_gap_abs_std+ 
-                 plm::lag(news_std, 1:3)| series + period, data = panel_df)
+                 plm::lag(news_std, 1:3)| variable + period, data = panel_df)
 summary(model4)
 
 stargazer(model1, model2, model3, model4,
