@@ -338,38 +338,83 @@ Regression tables
 "
 
 ####### SPF dispersion ####### 
+panel_df$mins_std2 <- (panel_df$mins_std + 2)^2
 model1 <- felm(mins_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
 summary(model1)
-model2 <- felm(mins_std ~ plm::lag(disp_std, 0)  + plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
+model2 <- felm(mins_std ~ plm::lag(disp_std, 0)  + plm::lag(mins_std, 1)| variable + period, data = panel_df)
 summary(model2)
+model2a <- felm(mins_std2 ~ plm::lag(disp_std, 0)  + plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
+summary(model2a)
 model3 <- felm(speeches_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
 summary(model3)
-model4 <- felm(speeches_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
+model4 <- felm(speeches_std ~ plm::lag(disp_std, 0)  + plm::lag(speeches_std, 1)| variable + period, data = panel_df)
 summary(model4)
+model4a <- felm(speeches_std ~ plm::lag(disp_std, 0)  + plm::lag(speeches_std, 1:7)| variable + period, data = panel_df)
+summary(model4a)
 model5 <- felm(news_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
 summary(model5)
-model6 <- felm(news_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
+model6 <- felm(news_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1)| variable + period, data = panel_df)
 summary(model6)
+model6a <- felm(news_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
+summary(model6a)
 
-stargazer(model1, model2, model3, model4,
+stargazer(model1, model2a, model3, model4a, model5, model6a,
           table.placement = "H", df = FALSE,
           title = "Focus and SPF forecast dispersion",
           label = "tab:topic_spf_results")
 
 ####### GB update ####### 
-model1 <- felm(fed_std ~ plm::lag(GB_update_abs_std, 0) | series, data = panel_df)
+model1 <- felm(mins_std ~ plm::lag(GB_update_abs_std, 0) | variable, data = panel_df)
 summary(model1)
-model2 <- felm(fed_std ~ plm::lag(GB_update_abs_std, 0:1)  + plm::lag(fed_std, 1:3)| series + period, data = panel_df)
+model2 <- felm(mins_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(mins_std, 1)| variable + period, data = panel_df)
 summary(model2)
-model3 <- felm(news_std ~ plm::lag(GB_update_abs_std, 0) | series, data = panel_df)
+model2a <- felm(mins_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
+summary(model2a)
+model3 <- felm(speeches_std ~ plm::lag(GB_update_abs_std, 0) | variable, data = panel_df)
 summary(model3)
-model4 <- felm(news_std ~ plm::lag(GB_update_abs_std, 0:1)  + plm::lag(news_std, 1:3)| series + period, data = panel_df)
+model4 <- felm(speeches_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(speeches_std, 1)| variable + period, data = panel_df)
 summary(model4)
+model4a <- felm(speeches_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(speeches_std, 1:7)| variable + period, data = panel_df)
+summary(model4a)
+model5 <- felm(news_std ~ plm::lag(GB_update_abs_std, 0) | variable, data = panel_df)
+summary(model5)
+model6 <- felm(news_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(news_std, 1)| variable + period, data = panel_df)
+summary(model6)
+model6a <- felm(news_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
+summary(model6a)
 
-stargazer(model1, model2, model3, model4,
+stargazer(model1, model2a, model3, model4a, model5, model6a,
           table.placement = "H", df = FALSE,
-          title = "FOMC minutes, NYT articles and GB update",
+          title = "Focus and Tealbook updates",
           label = "tab:topic_gb_update_results")
+
+
+####### GB error ####### 
+model1 <- felm(mins_std ~ plm::lag(GB_now_error_abs_std, 0) | variable, data = panel_df)
+summary(model1)
+model2 <- felm(mins_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(mins_std, 1)| variable + period, data = panel_df)
+summary(model2)
+model2a <- felm(mins_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
+summary(model2a)
+model3 <- felm(speeches_std ~ plm::lag(GB_now_error_abs_std, 0) | variable, data = panel_df)
+summary(model3)
+model4 <- felm(speeches_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(speeches_std, 1:7)| variable + period, data = panel_df)
+summary(model4)
+model4a <- felm(speeches_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(speeches_std, 1)| variable + period, data = panel_df)
+summary(model4a)
+model5 <- felm(news_std ~ plm::lag(GB_now_error_abs_std, 0) | variable, data = panel_df)
+summary(model5)
+model6 <- felm(news_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(news_std, 1)| variable + period, data = panel_df)
+summary(model6)
+model6a <- felm(news_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
+summary(model6a)
+
+stargazer(model1, model2a, model3, model4a, model5, model6a,
+          table.placement = "H", df = FALSE,
+          title = "Focus and Tealbook error",
+          label = "tab:topic_gb_error_results")
+
+
 
 
 ####### SPF update ####### 
@@ -388,20 +433,6 @@ stargazer(model1, model2, model3, model4,
           label = "tab:topic_spf_update_results")
 
 
-####### GB error ####### 
-model1 <- felm(fed_std ~ plm::lag(GB_now_error_abs_std, 0) | series, data = panel_df)
-summary(model1)
-model2 <- felm(fed_std ~ plm::lag(GB_now_error_abs_std, 0:1)  + plm::lag(fed_std, 1:3)| series + period, data = panel_df)
-summary(model2)
-model3 <- felm(news_std ~ plm::lag(GB_now_error_abs_std, 0) | series, data = panel_df)
-summary(model3)
-model4 <- felm(news_std ~ plm::lag(GB_now_error_abs_std, 0:1)  + plm::lag(news_std, 1:3)| series + period, data = panel_df)
-summary(model4)
-
-stargazer(model1, model2, model3, model4,
-          table.placement = "H", df = FALSE,
-          title = "FOMC minutes, NYT articles and GB error",
-          label = "tab:topic_gb_error_results")
 
 
 

@@ -653,10 +653,6 @@ ggplot(comp_K_df1, aes(x= K)) +
 ggsave("figures/fed_media_topics/topic_comp.pdf", width = 6, height = 3)
 
 
-comp_K_df$corpus <- "FOMC minutes"
-comp_K_df_speech$corpus <- "FOMC speeches"
-comp_K_df_news$corpus <- "NYT articles"  
-comp_K_df_all <- rbind(comp_K_df, comp_K_df_speech, comp_K_df_news)
 
 
 print_tab <- comp_K_df[,c("K", "not_matched", "disp", "GB_update", "GB_error")]
@@ -677,6 +673,10 @@ stargazer(as.matrix(print_tab), table.placement = "H",
           title = "Correlation of focus with uncertainty across K")
 
 
+comp_K_df$corpus <- "FOMC minutes"
+comp_K_df_speech$corpus <- "FOMC speeches"
+comp_K_df_news$corpus <- "NYT articles"  
+comp_K_df_all <- rbind(comp_K_df, comp_K_df_speech, comp_K_df_news)
 
 comp_K_df_all <- comp_K_df_all[,c("K", "corpus", "disp_coef", "disp_se", 
                                   "GB_up_coef", "GB_up_se","GB_err_coef", "GB_err_se")]
@@ -688,10 +688,10 @@ ggplot(comp_K_df_all, aes(y = K)) + theme_bw() +
   geom_ribbon(aes(xmin = disp_coef-1.96*abs(disp_se), xmax = disp_coef+1.96*abs(disp_se)), 
               alpha = 0.2) + 
   geom_point(aes(x = disp_coef)) + 
+  scale_x_continuous(breaks = c(0,0.2)) + 
   facet_wrap(corpus~., nrow = 1) + 
   xlab("Coefficient on SPF dispersion")
 ggsave("figures/fed_media_topics/disp_coefs.pdf", width = 4, height = 6)
-
 
 ggplot(comp_K_df_all, aes(y = K)) + theme_bw() + 
   geom_vline(aes(xintercept = 0), linetype = "dashed") + 
@@ -700,10 +700,10 @@ ggplot(comp_K_df_all, aes(y = K)) + theme_bw() +
   geom_ribbon(aes(xmin = GB_up_coef-1.96*abs(GB_up_se), xmax = GB_up_coef+1.96*abs(GB_up_se)), 
               alpha = 0.2) + 
   geom_point(aes(x = GB_up_coef)) + 
+  scale_x_continuous(breaks = c(0,0.2)) + 
   facet_wrap(corpus~., nrow = 1) + 
   xlab("Coefficient on Tealbook update")
 ggsave("figures/fed_media_topics/GB_up_coefs.pdf", width = 4, height = 6)
-
 
 ggplot(comp_K_df_all, aes(y = K)) + theme_bw() + 
   geom_vline(aes(xintercept = 0), linetype = "dashed") + 
@@ -712,6 +712,7 @@ ggplot(comp_K_df_all, aes(y = K)) + theme_bw() +
   geom_ribbon(aes(xmin = GB_err_coef-1.96*abs(GB_err_se), xmax = GB_err_coef+1.96*abs(GB_err_se)), 
               alpha = 0.2) + 
   geom_point(aes(x = GB_err_coef)) + 
+  scale_x_continuous(breaks = c(0,0.2)) + 
   facet_wrap(corpus~., nrow = 1) + 
   xlab("Coefficient on Tealbook error")
 ggsave("figures/fed_media_topics/GB_err_coefs.pdf", width = 4, height = 6)
