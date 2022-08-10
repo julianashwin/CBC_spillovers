@@ -34,9 +34,16 @@ fig_dir <- "figures/fed_media_topics/"
 ### Import the text data
 clean_filename = paste0(import_dir, "fedminutes_clean.csv")
 fedminutes_df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+write.csv(fedminutes_df[,c("unique_id","meeting_id","meet_date", "pub_date","quarter",
+                    "wordcount", "sentiment")], "data/clean_text/minutes_key.csv", row.names = FALSE)
+
+
 
 clean_filename = paste0(import_dir, "fedspeeches_clean.csv")
 fedspeeches_df <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
+write.csv(fedspeeches_df[,c("unique_id","speech_id", "date", "quarter", "wordcount","sentiment")], 
+          "data/clean_text/speeches_key.csv", row.names = FALSE)
+
 
 clean_filename = paste0(import_dir, "NYT_clean_90s.csv")
 nyt_df1 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
@@ -46,7 +53,10 @@ clean_filename = paste0(import_dir, "NYT_clean_10s.csv")
 nyt_df3 <- read.csv(clean_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 
 nyt_df <- rbind(nyt_df1, nyt_df2, nyt_df3)
-write.csv(nyt_df[,c("unique_id","date")], "data/clean_text/articles_key.csv", row.names = FALSE)
+write.csv(nyt_df[,c("unique_id","date","quarter","subsequent_meeting","recent_meeting",
+                    "subsequent_pub", "recent_pub", "subsequent_speech","recent_speech", 
+                    "wordcount", "sentiment")], 
+          "data/clean_text/articles_key.csv", row.names = FALSE)
 rm(nyt_df1,nyt_df2,nyt_df3)
 
 
