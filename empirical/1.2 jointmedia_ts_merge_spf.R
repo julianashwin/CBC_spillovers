@@ -86,6 +86,21 @@ create_corr_df <- function(total_panel, text_var = "mins_std", macro_var = "disp
   }
   return(corr_df)
 }
+
+
+felm_DK_se <- function(reg_formula, df_panel){
+  
+  # Estimate regressions with feols and felm
+  model <- feols(reg_formula, data = df_panel)
+  model_felm <- felm(reg_formula, data = df_panel)
+  
+  stopifnot(length(model_felm$se) ==  
+              length(summary(model, vcov = DK ~ period)$coeftable[,"Std. Error"]))
+  model_felm$se <- summary(model, vcov = DK ~ period)$coeftable[,"Std. Error"]
+  model_felm$tval <- summary(model, vcov = DK ~ period)$coeftable[,"t value"]
+  model_felm$pval <- summary(model, vcov = DK ~ period)$coeftable[,"Pr(>|t|)"]
+  return(model_felm)
+}
 #corr_df  <- create_corr_df(total_panel, "mins_std", "GB_update_abs_std")
 #corr_pval_df  <- create_corr_df(total_panel, "mins_std", "GB_update_abs_std", siglevel = F,
 #                           pval = T)
@@ -416,6 +431,33 @@ if (FALSE){
 }
 
 
+# Lags 
+total_panel$mins_std_1lag <- plm::lag(total_panel$mins_std,1)
+total_panel$mins_std_2lag <- plm::lag(total_panel$mins_std,2)
+total_panel$mins_std_3lag <- plm::lag(total_panel$mins_std,3)
+total_panel$mins_std_4lag <- plm::lag(total_panel$mins_std,4)
+total_panel$mins_std_5lag <- plm::lag(total_panel$mins_std,5)
+total_panel$mins_std_6lag <- plm::lag(total_panel$mins_std,6)
+total_panel$mins_std_7lag <- plm::lag(total_panel$mins_std,7)
+
+total_panel$speeches_std_1lag <- plm::lag(total_panel$speeches_std,1)
+total_panel$speeches_std_2lag <- plm::lag(total_panel$speeches_std,2)
+total_panel$speeches_std_3lag <- plm::lag(total_panel$speeches_std,3)
+total_panel$speeches_std_4lag <- plm::lag(total_panel$speeches_std,4)
+total_panel$speeches_std_5lag <- plm::lag(total_panel$speeches_std,5)
+total_panel$speeches_std_6lag <- plm::lag(total_panel$speeches_std,6)
+total_panel$speeches_std_7lag <- plm::lag(total_panel$speeches_std,7)
+
+total_panel$news_std_1lag <- plm::lag(total_panel$news_std,1)
+total_panel$news_std_2lag <- plm::lag(total_panel$news_std,2)
+total_panel$news_std_3lag <- plm::lag(total_panel$news_std,3)
+total_panel$news_std_4lag <- plm::lag(total_panel$news_std,4)
+total_panel$news_std_5lag <- plm::lag(total_panel$news_std,5)
+total_panel$news_std_6lag <- plm::lag(total_panel$news_std,6)
+total_panel$news_std_7lag <- plm::lag(total_panel$news_std,7)
+
+
+
 
 
 ### Fill in table 
@@ -458,47 +500,61 @@ comp_K_df$GB_SPF_gap[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(te
 
 comp_K_df$topics_picked[obs] <- paste(str_replace(topic_summary$Topic[topic_summary$SPF_vars != ""], 
                                              "Topic ", ""), collapse = ",")
+
+reg_panel <- total_panel[which(total_panel$quarter < "2017-01-01"),]
 # Dispersion
-model <- summary(felm(mins_std ~ plm::lag(disp_std,0) + plm::lag(mins_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(mins_std ~ disp_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df$disp_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df$disp_se[obs] <- model$coefficients[1,"Std. Error"]
-model <- summary(felm(speeches_std ~ plm::lag(disp_std,0) + plm::lag(speeches_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(speeches_std ~ disp_std+speeches_std_1lag+speeches_std_2lag+speeches_std_3lag|variable+period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df_speech$disp_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df_speech$disp_se[obs] <- model$coefficients[1,"Std. Error"]
-model <- summary(felm(news_std ~ plm::lag(disp_std,0) + plm::lag(news_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(news_std ~ disp_std+news_std_1lag+news_std_2lag+news_std_3lag|variable+period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df_news$disp_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df_news$disp_se[obs] <- model$coefficients[1,"Std. Error"]
 # GB update
-model <- summary(felm(mins_std ~ plm::lag(GB_update_abs_std,0) + plm::lag(mins_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(mins_std ~ GB_update_abs_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df$GB_up_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df$GB_up_se[obs] <- model$coefficients[1,"Std. Error"]
-model <- summary(felm(speeches_std ~ plm::lag(GB_update_abs_std,0) + plm::lag(speeches_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(speeches_std ~ GB_update_abs_std+speeches_std_1lag+speeches_std_2lag+speeches_std_3lag|variable+period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df_speech$GB_up_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df_speech$GB_up_se[obs] <- model$coefficients[1,"Std. Error"]
-model <- summary(felm(news_std ~ plm::lag(GB_update_abs_std,0) + plm::lag(news_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(news_std ~ GB_update_abs_std+news_std_1lag+news_std_2lag+news_std_3lag|variable+period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df_news$GB_up_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df_news$GB_up_se[obs] <- model$coefficients[1,"Std. Error"]
 # GB error
-model <- summary(felm(mins_std ~ plm::lag(GB_now_error_abs_std,0) + plm::lag(mins_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(mins_std ~ GB_now_error_abs_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df$GB_err_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df$GB_err_se[obs] <- model$coefficients[1,"Std. Error"]
-model <- summary(felm(speeches_std ~ plm::lag(GB_now_error_abs_std,0) + plm::lag(speeches_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(speeches_std ~ GB_now_error_abs_std+speeches_std_1lag+speeches_std_2lag+speeches_std_3lag|variable+period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df_speech$GB_err_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df_speech$GB_err_se[obs] <- model$coefficients[1,"Std. Error"]
-model <- summary(felm(news_std ~ plm::lag(GB_now_error_abs_std,0) + plm::lag(news_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(news_std ~ GB_now_error_abs_std+news_std_1lag+news_std_2lag+news_std_3lag|variable+period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df_news$GB_err_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df_news$GB_err_se[obs] <- model$coefficients[1,"Std. Error"]
 
 # Gap
-model <- summary(felm(mins_std ~ plm::lag(GB_SPF_now_gap_abs_std,0) + plm::lag(mins_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(mins_std ~ GB_SPF_now_gap_abs_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df$gap_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df$gap_se[obs] <- model$coefficients[1,"Std. Error"]
 # SPF update
-model <- summary(felm(mins_std ~ plm::lag(SPF_update_abs_std,0) + plm::lag(mins_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(mins_std ~ SPF_update_abs_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df$SPF_up_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df$SPF_up_se[obs] <- model$coefficients[1,"Std. Error"]
 # SPF error
-model <- summary(felm(mins_std ~ plm::lag(SPF_now_error_abs_std,0) + plm::lag(mins_std,7) | variable + period, total_panel[which(total_panel$quarter < "2017-01-01"),]))
+reg_formula <- formula(mins_std ~ SPF_now_error_abs_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df$SPF_err_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df$SPF_err_se[obs] <- model$coefficients[1,"Std. Error"]
 #summary(felm(disp_std ~ mins_std, total_panel))
@@ -600,7 +656,7 @@ mean(odiag(corr_mins_disp_mat), na.rm = T)
 
 
 }
-
+beep()
 
 ### Some topic model stats
 total_dtm <- readRDS("data/topic_data/overall/total_dtm.rds")

@@ -16,6 +16,20 @@ standardise <- function(x){
   return(x)
 }
 
+felm_DK_se <- function(reg_formula, df_panel){
+  
+  # Estimate regressions with feols and felm
+  model <- feols(reg_formula, data = df_panel)
+  model_felm <- felm(reg_formula, data = df_panel)
+  
+  stopifnot(length(model_felm$se) ==  
+              length(summary(model, vcov = DK ~ period)$coeftable[,"Std. Error"]))
+  model_felm$se <- summary(model, vcov = DK ~ period)$coeftable[,"Std. Error"]
+  model_felm$tval <- summary(model, vcov = DK ~ period)$coeftable[,"t value"]
+  model_felm$pval <- summary(model, vcov = DK ~ period)$coeftable[,"Pr(>|t|)"]
+  return(model_felm)
+}
+
 
 col_theme <- scale_color_manual("Legend", values = c("FOMC minutes" = "darkblue",
                                                        "FOMC speeches" = "darkgreen",
@@ -336,15 +350,35 @@ ggsave(paste0("figures/clouds/ts/fednyt_props_topic10.pdf"), width = 8, height =
 "
 Regression tables
 "
+panel_df$mins_1lag <- plm::lag(panel_df$mins_std,1)
+panel_df$mins_2lag <- plm::lag(panel_df$mins_std,2)
+panel_df$mins_3lag <- plm::lag(panel_df$mins_std,3)
+
+panel_df$news_1lag <- plm::lag(panel_df$news_std,1)
+panel_df$news_2lag <- plm::lag(panel_df$news_std,2)
+panel_df$news_3lag <- plm::lag(panel_df$news_std,3)
 
 ####### SPF dispersion ####### 
 panel_df$mins_std2 <- (panel_df$mins_std + 2)^2
 model1 <- felm(mins_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
 summary(model1)
+
+model1 <- feols(mins_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
+summary(model1, vcov = DK ~ period)
+
+
+
 model2 <- felm(mins_std ~ plm::lag(disp_std, 0)  + plm::lag(mins_std, 1)| variable + period, data = panel_df)
 summary(model2)
-model2a <- felm(mins_std2 ~ plm::lag(disp_std, 0)  + plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
+model2a <- felm(mins_std ~ plm::lag(disp_std, 0)  + mins_1lag + mins_2lag + mins_3lag
+                  | variable + period, data = panel_df)
 summary(model2a)
+
+model2a <- feols(mins_std ~ plm::lag(disp_std, 0)  + mins_1lag + mins_2lag + mins_3lag
+                 | variable + period, data = panel_df)
+summary(model2a, vcov = DK~ period)
+
+
 model3 <- felm(speeches_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
 summary(model3)
 model4 <- felm(speeches_std ~ plm::lag(disp_std, 0)  + plm::lag(speeches_std, 1)| variable + period, data = panel_df)
@@ -357,6 +391,13 @@ model6 <- felm(news_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1)| variab
 summary(model6)
 model6a <- felm(news_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
 summary(model6a)
+
+model6a <- feols(news_std ~ disp_std  + news_1lag + news_2lag + news_3lag
+                 | variable + period, data = panel_df)
+summary(model6a)
+summary(model6a, vcov = DK ~ period)
+
+
 
 stargazer(model1, model2a, model3, model4a, model5, model6a,
           table.placement = "H", df = FALSE,
