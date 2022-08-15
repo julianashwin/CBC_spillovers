@@ -130,10 +130,6 @@ comp_K_df_news <- data.frame(K = 15:40, not_matched = NA, double_matched = NA, d
 
 for (k in 15:40){
 ##### suffix for files 
-spec <- "_qly"
-spec <- "_full_qly_k30"
-spec <- "_full_qly_k40"
-spec <- "_qly_k30"
 spec <- paste0("_qly_k",k)
 #spec <- "_guid_k30_qly"
 
@@ -141,9 +137,6 @@ spec <- paste0("_qly_k",k)
 variablenames <- paste0("T", 1:k)
 
 # Import the topic summary for interpretation 
-import_filename =  "data/topic_data/full_topics_summary_k30.csv"
-import_filename =  "data/topic_data/full_topics_summary_k40.csv"
-import_filename =  "data/topic_data/short_topics_summary_k30.csv"
 import_filename =  paste0("data/topic_data/short_topics_summary_k",k,".csv")
 #import_filename =  "data/topic_data/joint_topics_summary_guid_k30.csv"
 topic_summary <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
@@ -253,8 +246,8 @@ match_vars <- function(topic_summary, SPF_var, top_terms){
   topic_summary$SPF_vars[obs] <- paste0(topic_summary$SPF_vars[obs], SPF_var, ",")
   return(topic_summary)
 }
-topic_summary <- match_vars(topic_summary, "NGDP", c("economi", "growth"))
-topic_summary <- match_vars(topic_summary, "RGDP", c("economi", "growth"))
+topic_summary <- match_vars(topic_summary, "NGDP", c("recess", "growth"))
+topic_summary <- match_vars(topic_summary, "RGDP", c("recess", "growth"))
 topic_summary <- match_vars(topic_summary, "CPI", c("price", "inflat"))
 topic_summary <- match_vars(topic_summary, "EMP", c("job", "emp"))
 topic_summary <- match_vars(topic_summary, "UNEMP", c("job", "emp"))
@@ -504,6 +497,7 @@ comp_K_df$topics_picked[obs] <- paste(str_replace(topic_summary$Topic[topic_summ
 reg_panel <- total_panel[which(total_panel$quarter < "2017-01-01"),]
 # Dispersion
 reg_formula <- formula(mins_std ~ disp_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+summary(feols(reg_formula, reg_panel), vcov = DK~period)
 model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df$disp_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df$disp_se[obs] <- model$coefficients[1,"Std. Error"]
@@ -658,6 +652,16 @@ mean(odiag(corr_mins_disp_mat), na.rm = T)
 }
 beep()
 
+
+
+
+
+
+
+
+
+
+
 ### Some topic model stats
 total_dtm <- readRDS("data/topic_data/overall/total_dtm.rds")
 short_dtm <- readRDS("data/topic_data/overall/short_dtm.rds")
@@ -736,39 +740,46 @@ comp_K_df_all <- rbind(comp_K_df, comp_K_df_speech, comp_K_df_news)
 
 comp_K_df_all <- comp_K_df_all[,c("K", "corpus", "disp_coef", "disp_se", 
                                   "GB_up_coef", "GB_up_se","GB_err_coef", "GB_err_se")]
+comp_K_df_all<- merge(comp_K_df_all, comp_K_df[,c("K","not_matched")], by = "K")
+comp_K_df_all$not_matched[which(comp_K_df_all$not_matched!="")] <- "some"#"some"
+comp_K_df_all$not_matched[which(comp_K_df_all$not_matched=="")] <- "some"
+
 ## Plot coefficients across K
 ggplot(comp_K_df_all, aes(y = K)) + theme_bw() + 
+  scale_shape_manual(guide="none",values = c("some" = 19, "none" = 8)) + 
   geom_vline(aes(xintercept = 0), linetype = "dashed") + 
   geom_ribbon(aes(xmin = disp_coef-1.282*abs(disp_se), xmax = disp_coef+1.282*abs(disp_se)), 
               alpha = 0.5) + 
   geom_ribbon(aes(xmin = disp_coef-1.96*abs(disp_se), xmax = disp_coef+1.96*abs(disp_se)), 
               alpha = 0.2) + 
-  geom_point(aes(x = disp_coef)) + 
-  scale_x_continuous(breaks = c(0,0.2)) + 
+  geom_point(aes(x = disp_coef, shape = not_matched)) + 
+  scale_x_continuous(breaks = c(-0.1,0,0.1)) + 
   facet_wrap(corpus~., nrow = 1) + 
   xlab("Coefficient on SPF dispersion")
 ggsave("figures/fed_media_topics/disp_coefs.pdf", width = 4, height = 6)
 
 ggplot(comp_K_df_all, aes(y = K)) + theme_bw() + 
+  scale_shape_manual(guide="none",values = c("some" = 19, "none" = 8)) + 
   geom_vline(aes(xintercept = 0), linetype = "dashed") + 
   geom_ribbon(aes(xmin = GB_up_coef-1.282*abs(GB_up_se), xmax = GB_up_coef+1.282*abs(GB_up_se)), 
               alpha = 0.5) + 
   geom_ribbon(aes(xmin = GB_up_coef-1.96*abs(GB_up_se), xmax = GB_up_coef+1.96*abs(GB_up_se)), 
               alpha = 0.2) + 
-  geom_point(aes(x = GB_up_coef)) + 
-  scale_x_continuous(breaks = c(0,0.2)) + 
+  geom_point(aes(x = GB_up_coef, shape = not_matched)) + 
+  scale_x_continuous(breaks = c(-0.1,0,0.1)) + 
   facet_wrap(corpus~., nrow = 1) + 
   xlab("Coefficient on Tealbook update")
 ggsave("figures/fed_media_topics/GB_up_coefs.pdf", width = 4, height = 6)
 
 ggplot(comp_K_df_all, aes(y = K)) + theme_bw() + 
+  scale_shape_manual(guide="none",values = c("some" = 19, "none" = 8)) + 
   geom_vline(aes(xintercept = 0), linetype = "dashed") + 
   geom_ribbon(aes(xmin = GB_err_coef-1.282*abs(GB_err_se), xmax = GB_err_coef+1.282*abs(GB_err_se)), 
               alpha = 0.5) + 
   geom_ribbon(aes(xmin = GB_err_coef-1.96*abs(GB_err_se), xmax = GB_err_coef+1.96*abs(GB_err_se)), 
               alpha = 0.2) + 
-  geom_point(aes(x = GB_err_coef)) + 
-  scale_x_continuous(breaks = c(0,0.2)) + 
+  geom_point(aes(x = GB_err_coef, shape = not_matched)) + 
+  scale_x_continuous(breaks = c(-0.1,0,0.1)) + 
   facet_wrap(corpus~., nrow = 1) + 
   xlab("Coefficient on Tealbook error")
 ggsave("figures/fed_media_topics/GB_err_coefs.pdf", width = 4, height = 6)

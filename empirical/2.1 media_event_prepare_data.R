@@ -551,7 +551,10 @@ comp_K_df$speech_se[obs] <- model_sum$coefficients["speech_theta","Std. Error"]
 
 
 
-
+speeches_panel$quarter <- floor_date(speeches_panel$date, unit = "quarters")
+speeches_agg <- aggregate(speeches_panel[,c("sentiment", "sentiment_prespeech")], by = list(speeches_panel$quarter),
+                          FUN = mean)
+cor.test(speeches_agg$sentiment, speeches_agg$sentiment_prespeech)
 "
 Tone
 "

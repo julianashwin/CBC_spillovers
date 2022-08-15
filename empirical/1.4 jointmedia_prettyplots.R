@@ -354,103 +354,110 @@ panel_df$mins_1lag <- plm::lag(panel_df$mins_std,1)
 panel_df$mins_2lag <- plm::lag(panel_df$mins_std,2)
 panel_df$mins_3lag <- plm::lag(panel_df$mins_std,3)
 
+panel_df$speeches_1lag <- plm::lag(panel_df$speeches_std,1)
+panel_df$speeches_2lag <- plm::lag(panel_df$speeches_std,2)
+panel_df$speeches_3lag <- plm::lag(panel_df$speeches_std,3)
+
 panel_df$news_1lag <- plm::lag(panel_df$news_std,1)
 panel_df$news_2lag <- plm::lag(panel_df$news_std,2)
 panel_df$news_3lag <- plm::lag(panel_df$news_std,3)
 
+
+
 ####### SPF dispersion ####### 
-panel_df$mins_std2 <- (panel_df$mins_std + 2)^2
-model1 <- felm(mins_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
+# To test for autocorrelation in residuals
+model <- model2
+summary(lm(model$residuals[-length(model$residuals)] ~ model$residuals[-1]) )
+
+# Mins just topic FE
+reg_formula <- formula(mins_std ~ disp_std |variable)
+model1 <- felm_DK_se(reg_formula, panel_df)
 summary(model1)
-
-model1 <- feols(mins_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
-summary(model1, vcov = DK ~ period)
-
-
-
-model2 <- felm(mins_std ~ plm::lag(disp_std, 0)  + plm::lag(mins_std, 1)| variable + period, data = panel_df)
+# Mins period FE and lags
+reg_formula <- formula(mins_std ~ disp_std + mins_1lag+mins_2lag+mins_3lag|variable + period)
+model2 <- felm_DK_se(reg_formula, panel_df)
 summary(model2)
-model2a <- felm(mins_std ~ plm::lag(disp_std, 0)  + mins_1lag + mins_2lag + mins_3lag
-                  | variable + period, data = panel_df)
-summary(model2a)
-
-model2a <- feols(mins_std ~ plm::lag(disp_std, 0)  + mins_1lag + mins_2lag + mins_3lag
-                 | variable + period, data = panel_df)
-summary(model2a, vcov = DK~ period)
-
-
-model3 <- felm(speeches_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
+# Speeches just topic FE
+reg_formula <- formula(speeches_std ~ disp_std |variable)
+model3 <- felm_DK_se(reg_formula, panel_df)
 summary(model3)
-model4 <- felm(speeches_std ~ plm::lag(disp_std, 0)  + plm::lag(speeches_std, 1)| variable + period, data = panel_df)
+# Speeches period FE and lags
+reg_formula <- formula(speeches_std ~ disp_std + speeches_1lag+speeches_2lag+speeches_3lag|variable + period)
+model4 <- felm_DK_se(reg_formula, panel_df)
 summary(model4)
-model4a <- felm(speeches_std ~ plm::lag(disp_std, 0)  + plm::lag(speeches_std, 1:7)| variable + period, data = panel_df)
-summary(model4a)
-model5 <- felm(news_std ~ plm::lag(disp_std, 0) | variable, data = panel_df)
+# News just topic FE
+reg_formula <- formula(news_std ~ disp_std |variable)
+model5 <- felm_DK_se(reg_formula, panel_df)
 summary(model5)
-model6 <- felm(news_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1)| variable + period, data = panel_df)
+# News period FE and lags
+reg_formula <- formula(news_std ~ disp_std + news_1lag+news_2lag+news_3lag|variable + period)
+model6 <- felm_DK_se(reg_formula, panel_df)
 summary(model6)
-model6a <- felm(news_std ~ plm::lag(disp_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
-summary(model6a)
 
-model6a <- feols(news_std ~ disp_std  + news_1lag + news_2lag + news_3lag
-                 | variable + period, data = panel_df)
-summary(model6a)
-summary(model6a, vcov = DK ~ period)
-
-
-
-stargazer(model1, model2a, model3, model4a, model5, model6a,
+stargazer(model1, model2, model3, model4, model5, model6,
           table.placement = "H", df = FALSE,
           title = "Focus and SPF forecast dispersion",
           label = "tab:topic_spf_results")
 
 ####### GB update ####### 
-model1 <- felm(mins_std ~ plm::lag(GB_update_abs_std, 0) | variable, data = panel_df)
+# Mins just topic FE
+reg_formula <- formula(mins_std ~ GB_update_abs_std |variable)
+model1 <- felm_DK_se(reg_formula, panel_df)
 summary(model1)
-model2 <- felm(mins_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(mins_std, 1)| variable + period, data = panel_df)
+# Mins period FE and lags
+reg_formula <- formula(mins_std ~ GB_update_abs_std + mins_1lag+mins_2lag+mins_3lag|variable + period)
+model2 <- felm_DK_se(reg_formula, panel_df)
 summary(model2)
-model2a <- felm(mins_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
-summary(model2a)
-model3 <- felm(speeches_std ~ plm::lag(GB_update_abs_std, 0) | variable, data = panel_df)
+# Speeches just topic FE
+reg_formula <- formula(speeches_std ~ GB_update_abs_std |variable)
+model3 <- felm_DK_se(reg_formula, panel_df)
 summary(model3)
-model4 <- felm(speeches_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(speeches_std, 1)| variable + period, data = panel_df)
+# Speeches period FE and lags
+reg_formula <- formula(speeches_std ~ GB_update_abs_std + speeches_1lag+speeches_2lag+speeches_3lag|variable + period)
+model4 <- felm_DK_se(reg_formula, panel_df)
 summary(model4)
-model4a <- felm(speeches_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(speeches_std, 1:7)| variable + period, data = panel_df)
-summary(model4a)
-model5 <- felm(news_std ~ plm::lag(GB_update_abs_std, 0) | variable, data = panel_df)
+# News just topic FE
+reg_formula <- formula(news_std ~ GB_update_abs_std |variable)
+model5 <- felm_DK_se(reg_formula, panel_df)
 summary(model5)
-model6 <- felm(news_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(news_std, 1)| variable + period, data = panel_df)
+# News period FE and lags
+reg_formula <- formula(news_std ~ GB_update_abs_std + news_1lag+news_2lag+news_3lag|variable + period)
+model6 <- felm_DK_se(reg_formula, panel_df)
 summary(model6)
-model6a <- felm(news_std ~ plm::lag(GB_update_abs_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
-summary(model6a)
 
-stargazer(model1, model2a, model3, model4a, model5, model6a,
+stargazer(model1, model2, model3, model4, model5, model6,
           table.placement = "H", df = FALSE,
           title = "Focus and Tealbook updates",
           label = "tab:topic_gb_update_results")
 
 
 ####### GB error ####### 
-model1 <- felm(mins_std ~ plm::lag(GB_now_error_abs_std, 0) | variable, data = panel_df)
+# Mins just topic FE
+reg_formula <- formula(mins_std ~ GB_now_error_abs_std |variable)
+model1 <- felm_DK_se(reg_formula, panel_df)
 summary(model1)
-model2 <- felm(mins_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(mins_std, 1)| variable + period, data = panel_df)
+# Mins period FE and lags
+reg_formula <- formula(mins_std ~ GB_now_error_abs_std + mins_1lag+mins_2lag+mins_3lag|variable + period)
+model2 <- felm_DK_se(reg_formula, panel_df)
 summary(model2)
-model2a <- felm(mins_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(mins_std, 1:7)| variable + period, data = panel_df)
-summary(model2a)
-model3 <- felm(speeches_std ~ plm::lag(GB_now_error_abs_std, 0) | variable, data = panel_df)
+# Speeches just topic FE
+reg_formula <- formula(speeches_std ~ GB_now_error_abs_std |variable)
+model3 <- felm_DK_se(reg_formula, panel_df)
 summary(model3)
-model4 <- felm(speeches_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(speeches_std, 1:7)| variable + period, data = panel_df)
+# Speeches period FE and lags
+reg_formula <- formula(speeches_std ~ GB_now_error_abs_std + speeches_1lag+speeches_2lag+speeches_3lag|variable + period)
+model4 <- felm_DK_se(reg_formula, panel_df)
 summary(model4)
-model4a <- felm(speeches_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(speeches_std, 1)| variable + period, data = panel_df)
-summary(model4a)
-model5 <- felm(news_std ~ plm::lag(GB_now_error_abs_std, 0) | variable, data = panel_df)
+# News just topic FE
+reg_formula <- formula(news_std ~ GB_now_error_abs_std |variable)
+model5 <- felm_DK_se(reg_formula, panel_df)
 summary(model5)
-model6 <- felm(news_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(news_std, 1)| variable + period, data = panel_df)
+# News period FE and lags
+reg_formula <- formula(news_std ~ GB_now_error_abs_std + news_1lag+news_2lag+news_3lag|variable + period)
+model6 <- felm_DK_se(reg_formula, panel_df)
 summary(model6)
-model6a <- felm(news_std ~ plm::lag(GB_now_error_abs_std, 0)  + plm::lag(news_std, 1:7)| variable + period, data = panel_df)
-summary(model6a)
 
-stargazer(model1, model2a, model3, model4a, model5, model6a,
+stargazer(model1, model2, model3, model4, model5, model6,
           table.placement = "H", df = FALSE,
           title = "Focus and Tealbook error",
           label = "tab:topic_gb_error_results")
