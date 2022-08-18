@@ -17,14 +17,27 @@ require(lfe)
 library(fixest)
 require(ggplot2)
 require(viridis)
-
+require(ggpubr)
+require(scales)
 
 
 standardise <- function(x){
   x <- (x - mean(x, na.rm = TRUE))/sd(x, na.rm = TRUE)
   return(x)
 }
-
+felm_DK_se <- function(reg_formula, df_panel){
+  
+  # Estimate regressions with feols and felm
+  model <- feols(reg_formula, data = df_panel)
+  model_felm <- felm(reg_formula, data = df_panel)
+  
+  stopifnot(length(model_felm$se) ==  
+              length(summary(model, vcov = DK ~ period)$coeftable[,"Std. Error"]))
+  model_felm$se <- summary(model, vcov = DK ~ period)$coeftable[,"Std. Error"]
+  model_felm$tval <- summary(model, vcov = DK ~ period)$coeftable[,"t value"]
+  model_felm$pval <- summary(model, vcov = DK ~ period)$coeftable[,"Pr(>|t|)"]
+  return(model_felm)
+}
 
 
 ### Define the directories where raw data is stored and clean will be saved
@@ -32,7 +45,11 @@ clean_dir <- "data/topic_data/overall/"
 #export_dir <- "~/Documents/DPhil/central_bank_communication/figures/"
 
 comp_K_df <- data.frame(K = 15:40, mins_coef = NA, mins_se = NA, speech_coef = NA, speech_se = NA, 
-                        mins_t_coef = NA, mins_t_se = NA, speech_t_coef = NA, speech_t_se = NA)
+                        mins_t_coef = NA, mins_t_se = NA, speech_t_coef = NA, speech_t_se = NA,
+                        mins_spec_coef = NA, mins_spec_se = NA, speech_spec_coef = NA, speech_spec_se = NA, 
+                        mins_t_spec_coef = NA, mins_t_spec_se = NA, speech_t_spec_coef = NA, speech_t_spec_se = NA,
+                        mins_std_coef = NA, mins_std_se = NA, speech_std_coef = NA, speech_std_se = NA, 
+                        mins_t_std_coef = NA, mins_t_std_se = NA, speech_t_std_coef = NA, speech_t_std_se = NA)
 
 k <- 29
 for (k in 15:40){
@@ -69,7 +86,10 @@ ggplot() + theme_bw() +
   geom_density(data = minutes_df, aes(x = sentiment, color = "mins")) +
   geom_density(data = speeches_df, aes(x = sentiment, color = "speech")) +
   geom_density(data = articles_df, aes(x = sentiment, color = "news")) 
-for (ii in 1:k){
+
+
+
+for (ii in 1:max(as.numeric(str_remove_all(str_remove_all(names(minutes_df), "[A-Za-z]+"), "_")), na.rm = T)){
   minutes_df[,paste0("T",ii,"_sent")] <- minutes_df[,paste0("T",ii)]*
     minutes_df$sentiment
   speeches_df[,paste0("T",ii,"_sent")] <- speeches_df[,paste0("T",ii)]*
@@ -137,25 +157,34 @@ if (k == 29){
                     "24: Foreign policy", "25: Stock market", "26: Growth", "27: Legal",
                     "28: Data II", "29: Labour market"))
   col_theme <- scale_fill_manual("Topic", 
-    values = c("1: Healthcare"= rainbow(29)[1], "2: Interest rates" = rainbow(29)[2], 
-               "3: Inflation" = rainbow(29)[3], "4: China" = rainbow(29)[4], 
-               "5: Committee views" = rainbow(29)[5], "6: Education" = rainbow(29)[6], 
-               "7: Data I" = rainbow(29)[7], "8: Real estate" = rainbow(29)[8],
-               "9: Expectations" = rainbow(29)[9], "10: Bond markets" = rainbow(29)[10], 
-               "11: Investment" = rainbow(29)[11], "12: Production" = rainbow(29)[12],
-               "13: Fiscal policy" = rainbow(29)[13], "14: General I" = rainbow(29)[14], 
-               "15: Policy decision" = rainbow(29)[15], 
-               "16: Infrastructure" = rainbow(29)[16], "17: Politics" = rainbow(29)[17], 
-               "18: Consumption" = rainbow(29)[18], "19: General II" = rainbow(29)[19],
-               "20: Europe" = rainbow(29)[20], "21: Corporations" = rainbow(29)[21], 
-               "22: Finance" = rainbow(29)[22], "23: Japan" = rainbow(29)[23],
-               "24: Foreign policy" = rainbow(29)[24], "25: Stock market" = rainbow(29)[25], 
-               "26: Growth" = rainbow(29)[26], "27: Legal" = rainbow(29)[27],
-               "28: Data II" = rainbow(29)[28], "29: Labour market" = rainbow(29)[29]))
-  ggplot(minutes_long, aes(x = date)) + theme_bw() + col_theme + 
+    values = c("1: Healthcare"= viridis(29)[1], "2: Interest rates" = viridis(29)[2], 
+               "3: Inflation" = "red", "4: China" = viridis(29)[4], 
+               "5: Committee views" = viridis(29)[5], "6: Education" = viridis(29)[6], 
+               "7: Data I" = viridis(29)[7], "8: Real estate" = viridis(29)[8],
+               "9: Expectations" = viridis(29)[9], "10: Bond markets" = viridis(29)[10], 
+               "11: Investment" = viridis(29)[11], "12: Production" = viridis(29)[12],
+               "13: Fiscal policy" = viridis(29)[13], "14: General I" = viridis(29)[14], 
+               "15: Policy decision" = viridis(29)[15], 
+               "16: Infrastructure" = viridis(29)[16], "17: Politics" = viridis(29)[17], 
+               "18: Consumption" = viridis(29)[18], "19: General II" = viridis(29)[19],
+               "20: Europe" = viridis(29)[20], "21: Corporations" = viridis(29)[21], 
+               "22: Finance" = "firebrick", "23: Japan" = viridis(29)[23],
+               "24: Foreign policy" = viridis(29)[24], "25: Stock market" = viridis(29)[25], 
+               "26: Growth" = viridis(29)[26], "27: Legal" = viridis(29)[27],
+               "28: Data II" = viridis(29)[28], "29: Labour market" = viridis(29)[29]))
+  plt1 <- ggplot(minutes_long, aes(x = date)) + theme_bw() + col_theme + 
     geom_bar(aes(y = mins_theta, fill = Topic), positin = "stack", stat = "identity") +
     geom_line(aes(y = sentiment)) + xlab("Date") + ylab("FOMC minutes sentiment")
-  ggsave("figures/fed_media_topics/minutes_sentiment_decomp.pdf", width = 12, height = 4.2)
+  
+  plt2 <- ggplot(minutes_long[which(minutes_long$date >= "2010-01-01" & minutes_long$date < "2011-01-01"),], 
+                 aes(x = date)) + theme_bw() + col_theme + 
+    scale_x_date(date_labels="%b '%y") + #,date_breaks  ="6 month") +
+    geom_bar(aes(y = mins_theta, fill = Topic), positin = "stack", stat = "identity") +
+    geom_line(aes(y = sentiment)) + xlab("Date") + ylab("")
+  ggarrange(plt1, plt2, ncol = 2, common.legend = T, widths = c(1, 0.25))
+  
+  ggsave("figures/fed_media_topics/minutes_sentiment_decomp.pdf", width = 14, height = 7)
+  
   
   ggplot(minutes_long[which(minutes_long$topic %in% c(3,22)),], aes(x = date)) + theme_bw()  + 
     geom_line(aes(y = mins_theta, color = Topic))
@@ -484,184 +513,209 @@ speeches_panel$sentiment_1lag <- plm::lag(speeches_panel$sentiment,1)
 speeches_panel$sentiment_2lag <- plm::lag(speeches_panel$sentiment,2)
 speeches_panel$sentiment_3lag <- plm::lag(speeches_panel$sentiment,3)
 
+minutes_panel$sentiment_pubwindow <- minutes_panel$sentiment_postpub - minutes_panel$sentiment_prepub
+speeches_panel$sentiment_speechwindow <- speeches_panel$sentiment_postspeech - speeches_panel$sentiment_prespeech
+
+speeches_panel$quarter <- floor_date(speeches_panel$date, unit = "quarters")
+speeches_agg <- aggregate(speeches_panel[,c("sentiment", "sentiment_prespeech")], by = list(speeches_panel$quarter),
+                          FUN = mean)
+cor.test(speeches_agg$sentiment, speeches_agg$sentiment_prespeech)
 
 
 "
 Focus
 "
 ## Minutes
-# Basic model without any controls
-reg_formula <- formula(news_pubwindow ~ mins_theta |topic + period)
-model1_felm <- felm_DK_se(reg_formula, minutes_panel)
-summary(model1_felm)
 # Include past media
 reg_formula <- formula(news_pubwindow ~ mins_theta + 
                          theta_prepub + theta_premeet + theta_postmeet 
                        |topic + period)
-model2_felm <- felm_DK_se(reg_formula, minutes_panel)
-summary(model2_felm)
-# Include dep variable lags
-reg_formula <- formula(news_pubwindow ~ mins_theta + 
-                         theta_prepub + theta_premeet + theta_postmeet +
-                         news_pubwindow_1lag + news_pubwindow_2lag + news_pubwindow_3lag
+model1_dk <- felm_DK_se(reg_formula, minutes_panel)
+model1_felm <- felm(reg_formula, minutes_panel)
+reg_formula_std <- formula(news_pubwindow_std ~ mins_theta_std + 
+                         theta_prepub_std + theta_premeet_std + theta_postmeet_std
                        |topic + period)
-model3_felm <- felm_DK_se(reg_formula, minutes_panel)
-summary(model3_felm)
+model1_std <- felm_DK_se(reg_formula_std, minutes_panel)
+summary(model1_dk)
 # Include topic-specific controls
-reg_formula <- formula(news_pubwindow ~ mins_theta + 
-                         topic*theta_prepub-topic + topic*theta_premeet-topic + topic*theta_postmeet-topic +
-                         topic*news_pubwindow_1lag-topic + topic*news_pubwindow_2lag-topic + topic*news_pubwindow_3lag-topic
+reg_formula <- formula(news_pubwindow ~ mins_theta + topic*theta_prepub-topic + 
+                         topic*theta_premeet-topic + topic*theta_postmeet-topic
                        |topic + period)
-model4_felm <- felm_DK_se(reg_formula, minutes_panel)
-summary(model4_felm)
+model2_dk <- felm_DK_se(reg_formula, minutes_panel)
+model2_felm <- felm(reg_formula, minutes_panel)
+reg_formula_std <- formula(news_pubwindow_std ~ mins_theta_std + topic*theta_prepub_std-topic + 
+                             topic*theta_premeet_std-topic + topic*theta_postmeet_std-topic
+                           |topic + period)
+model2_std <- felm_DK_se(reg_formula_std, minutes_panel)
+summary(model2_std)
 # Save coeff
 obs <- which(comp_K_df$K ==k)
-model_sum <- summary(model4_felm)
+# Unst 
+model_sum <- summary(model1_dk)
 comp_K_df$mins_coef[obs] <- model_sum$coefficients["mins_theta","Estimate"]
 comp_K_df$mins_se[obs] <- model_sum$coefficients["mins_theta","Std. Error"]
+# Topic-specific lags 
+model_sum <- summary(model2_dk)
+comp_K_df$mins_spec_coef[obs] <- model_sum$coefficients["mins_theta","Estimate"]
+comp_K_df$mins_spec_se[obs] <- model_sum$coefficients["mins_theta","Std. Error"]
+# Standardised
+model_sum <- summary(model1_std)
+comp_K_df$mins_std_coef[obs] <- model_sum$coefficients["mins_theta_std","Estimate"]
+comp_K_df$mins_std_se[obs] <- model_sum$coefficients["mins_theta_std","Std. Error"]
 
 
 ## Speeches
-# Basic model without any controls
-reg_formula <- formula(news_speechwindow ~ speech_theta | topic + period)
-model5_felm <- felm_DK_se(reg_formula, speeches_panel)
-summary(model5_felm)
 # Include past media
 reg_formula <- formula(news_speechwindow ~ speech_theta + theta_prespeech
                |topic + period)
-model6_felm <- felm_DK_se(reg_formula, speeches_panel)
-summary(model6_felm)
-# Include dep variable lags
-reg_formula <- formula(news_speechwindow ~ speech_theta + theta_prespeech +
-                   news_speechwindow_1lag + news_speechwindow_2lag + news_speechwindow_3lag
-               |topic + period)
-model7_felm <- felm_DK_se(reg_formula, speeches_panel)
-summary(model7_felm)
+model3_dk <- felm_DK_se(reg_formula, speeches_panel)
+model3_felm <- felm(reg_formula, speeches_panel)
+reg_formula_std <- formula(news_speechwindow_std ~ speech_theta_std + theta_prespeech_std
+                       |topic + period)
+model3_std <- felm_DK_se(reg_formula_std, speeches_panel)
+summary(model3_felm)
 # Include topic-specific controls
-reg_formula <- formula(news_speechwindow ~ speech_theta + topic*theta_prespeech - topic + 
-      topic*news_speechwindow_1lag-topic + topic*news_speechwindow_2lag-topic + topic*news_speechwindow_3lag-topic
+reg_formula <- formula(news_speechwindow ~ speech_theta + topic*theta_prespeech - topic
       | topic + period)
-model8_felm <- felm_DK_se(reg_formula, speeches_panel)
-summary(model8_felm)
+model4_dk <- felm_DK_se(reg_formula, speeches_panel)
+model4_felm <- felm(reg_formula, speeches_panel)
+reg_formula_std <- formula(news_speechwindow_std ~ speech_theta_std + topic*theta_prespeech_std - topic 
+                       | topic + period)
+model4_std <- felm_DK_se(reg_formula_std, speeches_panel)
+summary(model4_std)
 # Save coeff
 obs <- which(comp_K_df$K ==k)
-model_sum <- summary(model8_felm, vcov = DK ~ period)
+model_sum <- summary(model3_dk)
 comp_K_df$speech_coef[obs] <- model_sum$coefficients["speech_theta","Estimate"]
 comp_K_df$speech_se[obs] <- model_sum$coefficients["speech_theta","Std. Error"]
+# Topic-specific lags 
+model_sum <- summary(model4_dk)
+comp_K_df$speech_spec_coef[obs] <- model_sum$coefficients["speech_theta","Estimate"]
+comp_K_df$speech_spec_se[obs] <- model_sum$coefficients["speech_theta","Std. Error"]
+# Standardised
+model_sum <- summary(model3_std)
+comp_K_df$speech_std_coef[obs] <- model_sum$coefficients["speech_theta_std","Estimate"]
+comp_K_df$speech_std_se[obs] <- model_sum$coefficients["speech_theta_std","Std. Error"]
 
 
-
-speeches_panel$quarter <- floor_date(speeches_panel$date, unit = "quarters")
-speeches_agg <- aggregate(speeches_panel[,c("sentiment", "sentiment_prespeech")], by = list(speeches_panel$quarter),
-                          FUN = mean)
-cor.test(speeches_agg$sentiment, speeches_agg$sentiment_prespeech)
 "
 Tone
 "
 ## Minutes
-# Basic model without any controls
-reg_formula <- formula(news_sent_pubwindow ~ mins_theta_sent + mins_theta |topic + period)
-model1_felm <- felm_DK_se(reg_formula, minutes_panel)
-summary(model1_felm)
 # Include past media
 reg_formula <- formula(news_sent_pubwindow ~ mins_theta_sent + mins_theta + 
                          theta_sent_prepub + theta_sent_premeet + theta_sent_postmeet 
                        |topic + period)
-model2_felm <- felm_DK_se(reg_formula, minutes_panel)
-summary(model2_felm)
-# Include dep variable lags
-reg_formula <- formula(news_sent_pubwindow ~ mins_theta_sent + mins_theta + 
-                         theta_sent_prepub + theta_sent_premeet + theta_sent_postmeet +
-                         news_pubwindow_1lag + news_pubwindow_2lag + news_pubwindow_3lag
+model5_dk <- felm_DK_se(reg_formula, minutes_panel)
+model5_felm <- felm(reg_formula, minutes_panel)
+reg_formula_std <- formula(news_sent_pubwindow_std ~ mins_theta_sent_std + mins_theta_std + 
+                         theta_sent_prepub_std + theta_sent_premeet_std + theta_sent_postmeet_std 
                        |topic + period)
-model3_felm <- felm_DK_se(reg_formula, minutes_panel)
-summary(model3_felm)
+model5_std <- felm_DK_se(reg_formula_std, minutes_panel)
+summary(model5_std)
 # Include topic-specific controls
 reg_formula <- formula(news_sent_pubwindow ~ mins_theta_sent + mins_theta + 
-                         topic*theta_sent_prepub-topic + topic*theta_sent_premeet-topic + topic*theta_sent_postmeet-topic +
-                         topic*news_sent_pubwindow_1lag-topic + topic*news_sent_pubwindow_2lag-topic + 
-                         topic*news_sent_pubwindow_3lag-topic | topic + period)
-model4_felm <- felm_DK_se(reg_formula, minutes_panel)
-summary(model4_felm)
+                         topic*theta_sent_prepub-topic + topic*theta_sent_premeet-topic + topic*theta_sent_postmeet-topic
+                         | topic + period)
+model6_dk <- felm_DK_se(reg_formula, minutes_panel)
+model6_felm <- felm(reg_formula, minutes_panel)
+reg_formula_std <- formula(news_sent_pubwindow_std ~ mins_theta_sent_std + mins_theta_std + 
+                         topic*theta_sent_prepub_std-topic + topic*theta_sent_premeet_std-topic + topic*theta_sent_postmeet_std-topic
+                       | topic + period)
+model6_std <- felm_DK_se(reg_formula_std, minutes_panel)
+summary(model6_std)
 # Save coeff
 obs <- which(comp_K_df$K ==k)
-model_sum <- summary(model4_felm, vcov = DK ~ period)
+model_sum <- summary(model5_dk)
 comp_K_df$mins_t_coef[obs] <- model_sum$coefficients["mins_theta_sent","Estimate"]
 comp_K_df$mins_t_se[obs] <- model_sum$coefficients["mins_theta_sent","Std. Error"]
-
+# Topic-specific lags 
+model_sum <- summary(model6_dk)
+comp_K_df$mins_t_spec_coef[obs] <- model_sum$coefficients["mins_theta_sent","Estimate"]
+comp_K_df$mins_t_spec_se[obs] <- model_sum$coefficients["mins_theta_sent","Std. Error"]
+# Standardised
+model_sum <- summary(model5_std)
+comp_K_df$mins_t_std_coef[obs] <- model_sum$coefficients["mins_theta_sent_std","Estimate"]
+comp_K_df$mins_t_std_se[obs] <- model_sum$coefficients["mins_theta_sent_std","Std. Error"]
 
 ## Speeches
-model1 <- feols(news_sent_speechwindow ~ speech_theta_sent
-                |topic + period, data = speeches_panel)
-summary(model1, vcov = DK ~ period)
-model1 <- feols(news_sent_speechwindow ~ speech_theta_sent + speech_theta + 
-                  theta_sent_prespeech
-                |topic + period, data = speeches_panel)
-summary(model1, vcov = "iid")
-summary(model1, vcov = DK ~ period)
-model2 <- feols(news_sent_speechwindow ~ speech_theta_sent + speech_theta + 
-                  theta_sent_prespeech +
-                  news_sent_speechwindow_1lag + news_sent_speechwindow_2lag + news_sent_speechwindow_3lag
-                |topic + period, data = speeches_panel)
-summary(model2)
-summary(model2, vcov = DK ~ period)
-
-# Basic model without any controls
-reg_formula <- formula(news_sent_speechwindow ~ speech_theta_sent + speech_theta 
-                       | topic + period)
-model5_felm <- felm_DK_se(reg_formula, speeches_panel)
-summary(model5_felm)
 # Include past media
-reg_formula <- formula(news_sent_speechwindow ~ speech_theta_sent + speech_theta + 
-                         theta_sent_prespeech
+reg_formula <- formula(news_sent_speechwindow ~ speech_theta_sent + speech_theta + theta_sent_prespeech 
                        |topic + period)
-model6_felm <- felm_DK_se(reg_formula, speeches_panel)
-summary(model6_felm)
-# Include dep variable lags
-reg_formula <- formula(news_sent_speechwindow ~ speech_theta_sent + speech_theta + 
-                         theta_sent_prespeech +
-                         news_sent_speechwindow_1lag + news_sent_speechwindow_2lag + news_sent_speechwindow_3lag
-                       |topic + period)
-model7_felm <- felm_DK_se(reg_formula, speeches_panel)
-summary(model7_felm)
+model7_dk <- felm_DK_se(reg_formula, speeches_panel)
+model7_felm <- felm(reg_formula, speeches_panel)
+reg_formula_std <- formula(news_sent_speechwindow_std ~ speech_theta_sent_std + speech_theta_std + theta_sent_prespeech_std 
+                           |topic + period)
+model7_std <- felm_DK_se(reg_formula_std, speeches_panel)
+summary(model7_dk)
 # Include topic-specific controls
-reg_formula <- formula(news_sent_speechwindow ~ speech_theta_sent + speech_theta + 
-        topic*theta_sent_prespeech - topic + 
-        topic*news_sent_speechwindow_1lag-topic + topic*news_sent_speechwindow_2lag-topic + 
-        topic*news_sent_speechwindow_3lag-topic | topic + period)
-model8_felm <- felm_DK_se(reg_formula, speeches_panel)
-summary(model8_felm)
+reg_formula <- formula(news_sent_speechwindow ~ speech_theta_sent + speech_theta + topic*theta_sent_prespeech-topic 
+                       | topic + period)
+model8_dk <- felm_DK_se(reg_formula, speeches_panel)
+model8_felm <- felm(reg_formula, speeches_panel)
+reg_formula_std <- formula(news_sent_speechwindow_std ~ speech_theta_sent_std + speech_theta_std + topic*theta_sent_prespeech_std-topic
+                           | topic + period)
+model8_std <- felm_DK_se(reg_formula_std, speeches_panel)
+summary(model8_std)
 # Save coeff
 obs <- which(comp_K_df$K ==k)
-model_sum <- summary(model8_felm, vcov = DK ~ period)
+model_sum <- summary(model7_dk)
 comp_K_df$speech_t_coef[obs] <- model_sum$coefficients["speech_theta_sent","Estimate"]
 comp_K_df$speech_t_se[obs] <- model_sum$coefficients["speech_theta_sent","Std. Error"]
+# Topic-specific lags 
+model_sum <- summary(model8_dk)
+comp_K_df$speech_t_spec_coef[obs] <- model_sum$coefficients["speech_theta_sent","Estimate"]
+comp_K_df$speech_t_spec_se[obs] <- model_sum$coefficients["speech_theta_sent","Std. Error"]
+# Standardised
+model_sum <- summary(model7_std)
+comp_K_df$speech_t_std_coef[obs] <- model_sum$coefficients["speech_theta_sent_std","Estimate"]
+comp_K_df$speech_t_std_se[obs] <- model_sum$coefficients["speech_theta_sent_std","Std. Error"]
 
 
+## Non-topic based sentiment
+minutes_overall <- minutes_panel[which(minutes_panel$topic == "T1"),]
+speeches_overall <- speeches_panel[which(speeches_panel$topic == "T1"),]
+
+model9 <- lm(sentiment_pubwindow ~ sentiment + sentiment_prepub + sentiment_postmeet + 
+               sentiment_premeet, data = minutes_overall)
+summary(model9)
+model10 <- lm(sentiment_speechwindow ~ sentiment + sentiment_prespeech, data = speeches_overall)
+summary(model10)
+
+n <- nrow(minutes_overall)
+model <- lm(minutes_overall$sentiment_pubwindow[-1] ~ minutes_overall$sentiment_pubwindow[-n])
+summary(model)
+n <- nrow(speeches_overall)
+model <- lm(speeches_overall$sentiment_speechwindow[-1] ~ speeches_overall$sentiment_speechwindow[-n])
+summary(model)
 
 
-cor_vec <- rep(0,k)
-for (kk in 1:k){
-  obs <- which(minutes_panel$topic==paste0("T",kk))
-  test_temp <- cor.test(minutes_panel$sentiment[obs], minutes_panel$mins_theta_sent[obs])
-  cor_vec[kk] <- test_temp$estimate
-}
-minutes_panel$meet_date <- as.Date(minutes_panel$meet_date)
-ggplot(minutes_panel[which(minutes_panel$topic %in% c("T3","T23")),], aes(x = meet_date)) + theme_bw()  + 
-  geom_line(aes(y = mins_theta_sent, color = topic))
-
-
-
-
+ggplot(minutes_overall) + theme_bw() + 
+  geom_line(aes(x = meet_date, y = sentiment_pubwindow)) + 
+  geom_line(aes(x = meet_date, y = sentiment), color = "red")
 
 
 }
 beep()
 ####### End of loop over topics
-stargazer(model1_felm, model2_felm, model3_felm, model4_felm,
+stargazer(model1_dk, model2_dk, model3_dk, model4_dk,
           table.placement = "H", df = FALSE,
-          title = "FOMC effect on media coverage",
-          label = "tab:fed_media_effect")
+          title = "FOMC effect on focus of media coverage",
+          label = "tab:fed_media_focus_effect")
+stargazer(model5_dk, model6_dk, model7_dk, model8_dk, model9, model10,
+          table.placement = "H", df = FALSE,
+          title = "FOMC effect on tone of media coverage",
+          label = "tab:fed_media_tone_effect")
+
+stargazer(model2_felm, model2_std, model4_felm, model4_std,
+          table.placement = "H", df = FALSE,
+          title = "FOMC effect on focus of media coverage robustness",
+          label = "tab:fed_media_focus_effect_robust")
+
+stargazer(model6_felm, model8_felm,
+          table.placement = "H", df = FALSE,
+          title = "FOMC effect on tone of media coverage robustness",
+          label = "tab:fed_media_tone_effect_robust")
 
 
 
@@ -670,16 +724,33 @@ stargazer(model1_felm, model2_felm, model3_felm, model4_felm,
 
 comp_K_df_long <- melt(comp_K_df, id = c("K"),
                   variable.name = "type", value.name = "value")
+comp_K_df_long <- comp_K_df_long[which(comp_K_df_long$type %in% c("mins_spec_coef", "mins_spec_se",
+        "mins_t_spec_coef", "mins_t_spec_se", "speech_spec_coef", "speech_spec_se", 
+        "speech_t_spec_coef", "speech_t_spec_se")),]
 comp_K_df_long$model <- ""
-comp_K_df_long$model[which(comp_K_df_long$type %in% c("mins_coef", "mins_se"))] <- "Minutes Focus"
-comp_K_df_long$model[which(comp_K_df_long$type %in% c("mins_t_coef", "mins_t_se"))] <- "Minutes Tone"
-comp_K_df_long$model[which(comp_K_df_long$type %in% c("speech_coef", "speech_se"))] <- "Speeches Focus"
-comp_K_df_long$model[which(comp_K_df_long$type %in% c("speech_t_coef", "speech_t_se"))] <- "Speeches Tone"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("mins_coef", "mins_se"))] <- "Minutes Focus (non-spec)"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("mins_t_coef", "mins_t_se"))] <- "Minutes Tone (non-spec)"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("speech_coef", "speech_se"))] <- "Speeches Focus (non-spec)"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("speech_t_coef", "speech_t_se"))] <- "Speeches Tone (non-spec)"
+
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("mins_spec_coef", "mins_spec_se"))] <- "Minutes Focus"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("mins_t_spec_coef", "mins_t_spec_se"))] <- "Minutes Tone"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("speech_spec_coef", "speech_spec_se"))] <- "Speeches Focus"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("speech_t_spec_coef", "speech_t_spec_se"))] <- "Speeches Tone"
+
+
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("mins_std_coef", "mins_std_se"))] <- "Minutes Focus (std)"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("mins_t_std_coef", "mins_t_std_se"))] <- "Minutes Tone (std)"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("speech_std_coef", "speech_std_se"))] <- "Speeches Focus (std)"
+comp_K_df_long$model[which(comp_K_df_long$type %in% c("speech_t_std_coef", "speech_t_std_se"))] <- "Speeches Tone (std)"
+
 
 comp_K_df_long$type <- str_remove_all(comp_K_df_long$type, "[a-z]+_")
 
 comp_K_df_long <- pivot_wider(comp_K_df_long, id_cols = c(K,model),
                               names_from = type, values_from = value)
+comp_K_df_long <- data.frame(comp_K_df_long)
+comp_K_df_long <- comp_K_df_long[!is.na(comp_K_df_long$se),]
 
 ggplot(comp_K_df_long, aes(y = K)) + theme_bw() + 
   geom_vline(aes(xintercept = 0), linetype = "dashed") + 
@@ -694,7 +765,8 @@ ggplot(comp_K_df_long, aes(y = K)) + theme_bw() +
 ggsave("figures/fed_media_topics/fed_media_coefs.pdf", width = 8, height = 6)
 
 
+comp_K_sptone <- comp_K_df_long[which(comp_K_df_long$model == "Speeches Tone"),]
 
-
+comp_K_sptone$coef - 1.96*abs(comp_K_sptone$se)
 
 ############################# End ############################# 

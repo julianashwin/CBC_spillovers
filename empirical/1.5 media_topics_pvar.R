@@ -365,7 +365,7 @@ for (nn in 1:ndraws){
   for (si in sub_inds[2:length(sub_inds)]){
     sub.df <- rbind(sub.df, total.df[which(total.df$variable == si),])
   }
-  sub.df$disp_std <- sub.df$GB_now_error_abs_std
+  sub.df$disp_std <- sub.df$GB_SPF_error_diff_std
   # Estimate VAR by OLS
   var_sub <- pvarfeols(
     dependent_vars = c("disp_std","news_std","mins_std"),
@@ -437,34 +437,34 @@ plt_btstrp <- function(btstrp_df){
 #### Plot and save all the OIRFs
 # Dispersion
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"disp_on_disp_")
-plt_btstrp(btstrp_df) + ggtitle("Tealbook error on Tealbook error")
-ggsave("figures/IRFs/GB_error/GBerr_GBerr.pdf", width = 4, height = 3)
+plt_btstrp(btstrp_df) + ggtitle("TB-SPF error diff on TB-SPF error diff")
+ggsave("figures/IRFs/GB_errdiff/GBerr_GBerr.pdf", width = 4, height = 3)
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"disp_on_news_")
-plt_btstrp(btstrp_df) + ggtitle("Tealbook error on NYT focus")
-ggsave("figures/IRFs/GB_error/GBerr_nyt.pdf", width = 4, height = 3)
+plt_btstrp(btstrp_df) + ggtitle("TB-SPF error diff on NYT focus")
+ggsave("figures/IRFs/GB_errdiff/GBerr_nyt.pdf", width = 4, height = 3)
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"disp_on_fed_")
-plt_btstrp(btstrp_df) + ggtitle("Tealbook error on FOMC minutes focus")
-ggsave("figures/IRFs/GB_error/GBerr_fomc.pdf", width = 4, height = 3)
+plt_btstrp(btstrp_df) + ggtitle("TB-SPF error diff on FOMC minutes focus")
+ggsave("figures/IRFs/GB_errdiff/GBerr_fomc.pdf", width = 4, height = 3)
 # News
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"news_on_disp_")
-plt_btstrp(btstrp_df) + ggtitle("NYT focus on Tealbook error")
-ggsave("figures/IRFs/GB_error/nyt_GBerr.pdf", width = 4, height = 3)
+plt_btstrp(btstrp_df) + ggtitle("NYT focus on TB-SPF error diff")
+ggsave("figures/IRFs/GB_errdiff/nyt_GBerr.pdf", width = 4, height = 3)
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"news_on_news_")
 plt_btstrp(btstrp_df) + ggtitle("NYT focus on NYT focus")
-ggsave("figures/IRFs/GB_error/nyt_nyt.pdf", width = 4, height = 3)
+ggsave("figures/IRFs/GB_errdiff/nyt_nyt.pdf", width = 4, height = 3)
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"news_on_fed_")
 plt_btstrp(btstrp_df) + ggtitle("NYT focus on FOMC minutes focus")
-ggsave("figures/IRFs/GB_error/nyt_fomc.pdf", width = 4, height = 3)
+ggsave("figures/IRFs/GB_errdiff/nyt_fomc.pdf", width = 4, height = 3)
 # Fed
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"fed_on_disp_")
-plt_btstrp(btstrp_df) + ggtitle("FOMC minutes focus on Tealbook error")
-ggsave("figures/IRFs/GB_error/fomc_GBerr.pdf", width = 4, height = 3)
+plt_btstrp(btstrp_df) + ggtitle("FOMC minutes focus on TB-SPF error diff")
+ggsave("figures/IRFs/GB_errdiff/fomc_GBerr.pdf", width = 4, height = 3)
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"fed_on_news_")
 plt_btstrp(btstrp_df) + ggtitle("FOMC minutes focus on NYT focus")
-ggsave("figures/IRFs/GB_error/fomc_nyt.pdf", width = 4, height = 3)
+ggsave("figures/IRFs/GB_errdiff/fomc_nyt.pdf", width = 4, height = 3)
 btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"fed_on_fed_")
 plt_btstrp(btstrp_df) + ggtitle("FOMC minutes focus on FOMC minutes focus")
-ggsave("figures/IRFs/GB_error/fomc_fomc.pdf", width = 4, height = 3)
+ggsave("figures/IRFs/GB_errdiff/fomc_fomc.pdf", width = 4, height = 3)
 
 
 

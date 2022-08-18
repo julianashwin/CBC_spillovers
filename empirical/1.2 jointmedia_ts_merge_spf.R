@@ -107,24 +107,27 @@ felm_DK_se <- function(reg_formula, df_panel){
 
 comp_K_df <- data.frame(K = 15:40, not_matched = NA, double_matched = NA, disp = NA, GB_update = NA,
                         SPF_update = NA, GB_error = NA, SPF_error = NA, GB_SPF_gap = NA,
-                        topics_picked = NA,
+                        GB_SPF_errdiff = NA, topics_picked = NA,
                         disp_coef = NA, disp_se = NA, gap_coef = NA, gap_se = NA, 
                         GB_up_coef = NA, GB_up_se = NA, GB_err_coef = NA, GB_err_se = NA,
+                        GB_SPF_errdiff_coef = NA, GB_SPF_errdiff_se = NA,
                         SPF_up_coef = NA, SPF_up_se = NA, SPF_err_coef = NA, SPF_err_se = NA)
 
 comp_K_df_speech <- data.frame(K = 15:40, not_matched = NA, double_matched = NA, disp = NA, GB_update = NA,
                         SPF_update = NA, GB_error = NA, SPF_error = NA, GB_SPF_gap = NA,
-                        topics_picked = NA,
+                        GB_SPF_errdiff = NA, topics_picked = NA,
                         disp_coef = NA, disp_se = NA, gap_coef = NA, gap_se = NA, 
                         GB_up_coef = NA, GB_up_se = NA, GB_err_coef = NA, GB_err_se = NA,
+                        GB_SPF_errdiff_coef = NA, GB_SPF_errdiff_se = NA,
                         SPF_up_coef = NA, SPF_up_se = NA, SPF_err_coef = NA, SPF_err_se = NA)
 
 comp_K_df_news <- data.frame(K = 15:40, not_matched = NA, double_matched = NA, disp = NA, GB_update = NA,
-                               SPF_update = NA, GB_error = NA, SPF_error = NA, GB_SPF_gap = NA,
-                               topics_picked = NA,
-                               disp_coef = NA, disp_se = NA, gap_coef = NA, gap_se = NA, 
-                               GB_up_coef = NA, GB_up_se = NA, GB_err_coef = NA, GB_err_se = NA,
-                               SPF_up_coef = NA, SPF_up_se = NA, SPF_err_coef = NA, SPF_err_se = NA)
+                             SPF_update = NA, GB_error = NA, SPF_error = NA, GB_SPF_gap = NA,
+                             GB_SPF_errdiff = NA, topics_picked = NA,
+                             disp_coef = NA, disp_se = NA, gap_coef = NA, gap_se = NA, 
+                             GB_up_coef = NA, GB_up_se = NA, GB_err_coef = NA, GB_err_se = NA,
+                             GB_SPF_errdiff_coef = NA, GB_SPF_errdiff_se = NA,
+                             SPF_up_coef = NA, SPF_up_se = NA, SPF_err_coef = NA, SPF_err_se = NA)
 
 
 
@@ -191,8 +194,8 @@ import_filename = paste0(clean_dir,"overall/article_topics_k",k,".csv")
 articles_mly <- read.csv(import_filename, encoding = "utf-8", stringsAsFactors = FALSE)
 articles_mly <- merge(articles_key, articles_mly, by = "unique_id")
 articles_mly$month <- floor_date(as.Date(articles_mly$date), unit = "months")
-articles_mly <- articles_mly[,c("month", variablenames)]
-articles_mly <- aggregate(articles_mly[,variablenames], by = list(month = articles_mly$month), FUN = mean)
+articles_mly <- articles_mly[,c("month", names(articles_mly)[str_detect(names(articles_mly), "^T[0-9]+$")])]
+articles_mly <- aggregate(articles_mly[,which(str_detect(names(articles_mly), "^T[0-9]+$"))], by = list(month = articles_mly$month), FUN = mean)
 
 
 # Combine into one quarterly df
@@ -289,44 +292,46 @@ ur_sig <- function(temp_test , hypoth = "tau3"){
   stat_out <-  paste0(round(temp_test@teststat[,hypoth],2), sig_level)
   return(stat_out)
 }
+if (k == 29){
+  for (kk in 1:k){
+    
+    temp_series <- minutes_mly[,paste0("T",kk)]
+    temp_test <- ur.df(temp_series, type = "trend", lags = 1,
+                       selectlags = "AIC")
+    temp_test@testreg
+    topic_summary[kk, "tau_mins"] <- ur_sig(temp_test , hypoth = "tau3")
+    topic_summary[kk, "phi1_mins"] <- ur_sig(temp_test , hypoth = "phi2")
+    topic_summary[kk, "phi2_mins"] <- ur_sig(temp_test , hypoth = "phi3")
+    
+    temp_series <- speeches_mly[,paste0("T",kk)]
+    temp_series <- temp_series[which(!is.na(temp_series))]
+    temp_test <- ur.df(temp_series, type = "trend", lags = 1,
+                       selectlags = "AIC")
+    temp_test@testreg
+    topic_summary[kk, "tau_speech"] <- ur_sig(temp_test , hypoth = "tau3")
+    topic_summary[kk, "phi1_speech"] <- ur_sig(temp_test , hypoth = "phi2")
+    topic_summary[kk, "phi2_speech"] <- ur_sig(temp_test , hypoth = "phi3")
+    
+    temp_series <- articles_mly[,paste0("T",kk)]
+    temp_series <- temp_series[which(!is.na(temp_series))]
+    temp_test <- ur.df(temp_series, type = "trend", lags = 1,
+                       selectlags = "AIC")
+    temp_test@testreg
+    topic_summary[kk, "tau_news"] <- ur_sig(temp_test , hypoth = "tau3")
+    topic_summary[kk, "phi1_news"] <- ur_sig(temp_test , hypoth = "phi2")
+    topic_summary[kk, "phi2_news"] <- ur_sig(temp_test , hypoth = "phi3")
+    
+  }
+  if (FALSE){
+    print_tab <- topic_summary[,c("Topic","tau_mins", "phi1_mins", "phi2_mins",
+                                  "tau_speech", "phi1_speech", "phi2_speech",
+                                  "tau_news", "phi1_news", "phi2_news")]
+    #print_tab <- print_tab[which(topic_summary$SPF_vars != ""),]
+    stargazer(as.matrix(print_tab), table.placement = "H", 
+              title = "Augmented Dickey-Fuller unit root test results")
+  }
+}
 
-for (kk in 1:k){
-  
-  temp_series <- minutes_mly[,paste0("T",kk)]
-  temp_test <- ur.df(temp_series, type = "trend", lags = 1,
-                     selectlags = "AIC")
-  temp_test@testreg
-  topic_summary[kk, "tau_mins"] <- ur_sig(temp_test , hypoth = "tau3")
-  topic_summary[kk, "phi1_mins"] <- ur_sig(temp_test , hypoth = "phi2")
-  topic_summary[kk, "phi2_mins"] <- ur_sig(temp_test , hypoth = "phi3")
-  
-  temp_series <- speeches_mly[,paste0("T",kk)]
-  temp_series <- temp_series[which(!is.na(temp_series))]
-  temp_test <- ur.df(temp_series, type = "trend", lags = 1,
-                     selectlags = "AIC")
-  temp_test@testreg
-  topic_summary[kk, "tau_speech"] <- ur_sig(temp_test , hypoth = "tau3")
-  topic_summary[kk, "phi1_speech"] <- ur_sig(temp_test , hypoth = "phi2")
-  topic_summary[kk, "phi2_speech"] <- ur_sig(temp_test , hypoth = "phi3")
-  
-  temp_series <- articles_mly[,paste0("T",kk)]
-  temp_series <- temp_series[which(!is.na(temp_series))]
-  temp_test <- ur.df(temp_series, type = "trend", lags = 1,
-                     selectlags = "AIC")
-  temp_test@testreg
-  topic_summary[kk, "tau_news"] <- ur_sig(temp_test , hypoth = "tau3")
-  topic_summary[kk, "phi1_news"] <- ur_sig(temp_test , hypoth = "phi2")
-  topic_summary[kk, "phi2_news"] <- ur_sig(temp_test , hypoth = "phi3")
-  
-}
-if (FALSE){
-  print_tab <- topic_summary[,c("Topic","tau_mins", "phi1_mins", "phi2_mins",
-                                "tau_speech", "phi1_speech", "phi2_speech",
-                                "tau_news", "phi1_news", "phi2_news")]
-  #print_tab <- print_tab[which(topic_summary$SPF_vars != ""),]
-  stargazer(as.matrix(print_tab), table.placement = "H", 
-            title = "Augmented Dickey-Fuller unit root test results")
-}
 
 
 
@@ -411,17 +416,12 @@ ggplot(total_panel) + theme_bw() +
                                             "News articles" = "grey",
                                             "SPF dispersion" = "firebrick")) + 
   facet_wrap(variable~., nrow = 3, scales = "free") +
-  geom_line(aes(x = quarter, y = news_std, color = "FOMC speeches"), alpha = 0.6) +
-  geom_line(aes(x = quarter, y = speeches_std, color = "News articles"), alpha = 0.6) +
+  geom_line(aes(x = quarter, y = speeches_std, color = "FOMC speeches"), alpha = 0.6) +
+  geom_line(aes(x = quarter, y = news_std, color = "News articles"), alpha = 0.6) +
   geom_line(aes(x = quarter, y = mins_std, color = "FOMC minutes"), alpha = 0.8) + 
   geom_line(aes(x = quarter, y = disp_std, color = "SPF dispersion"), alpha = 0.8) + 
   xlab("Date") + ylab("Std. Units") + scale_x_date(date_labels = "%y")
 #ggsave("figures/fed_media_topics/all_topics.pdf", width = 8, height = 5)
-
-if (FALSE){
-  clean_filename = "data/topics_forecasts_panel.csv"
-  write.csv(total_panel, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
-}
 
 
 # Lags 
@@ -449,6 +449,18 @@ total_panel$news_std_5lag <- plm::lag(total_panel$news_std,5)
 total_panel$news_std_6lag <- plm::lag(total_panel$news_std,6)
 total_panel$news_std_7lag <- plm::lag(total_panel$news_std,7)
 
+
+# Define the GB-SPF error diff
+total_panel$GB_SPF_error_diff <- total_panel$GB_now_error_abs - total_panel$SPF_now_error_abs
+total_panel$GB_SPF_error_diff_std <- NA
+for (kk in unique(total_panel$variable)){
+  obs <- which(total_panel$variable == kk)
+  total_panel$GB_SPF_error_diff_std[obs] <- standardise(total_panel$GB_SPF_error_diff[obs])
+}
+if (FALSE){
+  clean_filename = "data/topics_forecasts_panel.csv"
+  write.csv(total_panel, file = clean_filename, fileEncoding = "utf-8", row.names = FALSE)
+}
 
 
 
@@ -479,6 +491,13 @@ test_temp <- cor.test(total_panel$GB_now_error_abs_std, total_panel$speeches_std
 comp_K_df_speech$GB_error[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
 test_temp <- cor.test(total_panel$GB_now_error_abs_std, total_panel$news_std)
 comp_K_df_news$GB_error[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+# GB-SPF diff
+test_temp <- cor.test(total_panel$GB_SPF_error_diff_std, total_panel$mins_std)
+comp_K_df$GB_SPF_errdiff[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+test_temp <- cor.test(total_panel$GB_SPF_error_diff_std, total_panel$speeches_std)
+comp_K_df_speech$GB_SPF_errdiff[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+test_temp <- cor.test(total_panel$GB_SPF_error_diff_std, total_panel$news_std)
+comp_K_df_news$GB_SPF_errdiff[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
 
 
 # Other 
@@ -494,8 +513,9 @@ comp_K_df$GB_SPF_gap[obs] <- paste0(round(test_temp$estimate,3), get_siglevel(te
 comp_K_df$topics_picked[obs] <- paste(str_replace(topic_summary$Topic[topic_summary$SPF_vars != ""], 
                                              "Topic ", ""), collapse = ",")
 
-reg_panel <- total_panel[which(total_panel$quarter < "2017-01-01"),]
+
 # Dispersion
+reg_panel <- total_panel[which(total_panel$quarter < "2017-01-01"),]
 reg_formula <- formula(mins_std ~ disp_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
 summary(feols(reg_formula, reg_panel), vcov = DK~period)
 model <- summary(felm_DK_se(reg_formula, reg_panel))
@@ -535,6 +555,19 @@ reg_formula <- formula(news_std ~ GB_now_error_abs_std+news_std_1lag+news_std_2l
 model <- summary(felm_DK_se(reg_formula, reg_panel))
 comp_K_df_news$GB_err_coef[obs] <- model$coefficients[1,"Estimate"]
 comp_K_df_news$GB_err_se[obs] <- model$coefficients[1,"Std. Error"]
+# GBSPF error diff
+reg_formula <- formula(mins_std ~ GB_SPF_error_diff_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
+comp_K_df$GB_SPF_errdiff_coef[obs] <- model$coefficients[1,"Estimate"]
+comp_K_df$GB_SPF_errdiff_se[obs] <- model$coefficients[1,"Std. Error"]
+reg_formula <- formula(speeches_std ~ GB_SPF_error_diff_std+speeches_std_1lag+speeches_std_2lag+speeches_std_3lag|variable+period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
+comp_K_df_speech$GB_SPF_errdiff_coef[obs] <- model$coefficients[1,"Estimate"]
+comp_K_df_speech$GB_SPF_errdiff_se[obs] <- model$coefficients[1,"Std. Error"]
+reg_formula <- formula(news_std ~ GB_SPF_error_diff_std+news_std_1lag+news_std_2lag+news_std_3lag|variable+period)
+model <- summary(felm_DK_se(reg_formula, reg_panel))
+comp_K_df_news$GB_SPF_errdiff_coef[obs] <- model$coefficients[1,"Estimate"]
+comp_K_df_news$GB_SPF_errdiff_se[obs] <- model$coefficients[1,"Std. Error"]
 
 # Gap
 reg_formula <- formula(mins_std ~ GB_SPF_now_gap_abs_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
@@ -556,9 +589,9 @@ comp_K_df$SPF_err_se[obs] <- model$coefficients[1,"Std. Error"]
 
 
 corr_df <- data.frame(Variable = unique(total_panel$variable), 
-                      disp_mins = NA, GB_up_mins = NA, GB_err_mins = NA,
-                      disp_speech = NA, GB_up_speech = NA, GB_err_speech = NA,
-                      disp_news = NA, GB_up_news = NA, GB_err_news = NA)
+                      disp_mins = NA, GB_up_mins = NA, GBSPF_diff_mins = NA,
+                      disp_speech = NA, GB_up_speech = NA, GBSPF_diff_speech = NA,
+                      disp_news = NA, GB_up_news = NA, GBSPF_diff_news = NA)
 for (ii in 1:nrow(corr_df)){
   varname <- as.character(corr_df$Variable[ii])
   obs <- which(total_panel$variable == varname)
@@ -579,12 +612,12 @@ for (ii in 1:nrow(corr_df)){
       test_temp <- cor.test(total_panel$GB_update_abs_std[obs], total_panel$news_std[obs])
       corr_df$GB_up_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
       # GB error
-      test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$mins_std[obs])
-      corr_df$GB_err_mins[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-      test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$speeches_std[obs])
-      corr_df$GB_err_speech[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
-      test_temp <- cor.test(total_panel$GB_now_error_abs_std[obs], total_panel$news_std[obs])
-      corr_df$GB_err_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+      test_temp <- cor.test(total_panel$GB_SPF_error_diff_std[obs], total_panel$mins_std[obs])
+      corr_df$GBSPF_diff_mins[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+      test_temp <- cor.test(total_panel$GB_SPF_error_diff_std[obs], total_panel$speeches_std[obs])
+      corr_df$GBSPF_diff_speech[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
+      test_temp <- cor.test(total_panel$GB_SPF_error_diff_std[obs], total_panel$news_std[obs])
+      corr_df$GBSPF_diff_news[ii] <- paste0(round(test_temp$estimate,3), get_siglevel(test_temp))
     }
   }
 }
@@ -596,7 +629,7 @@ if (FALSE){
 
 corr_disp  <-  create_corr_df(total_panel, text_var = "mins_std", macro_var = "disp_std",)
 corr_up <- create_corr_df(total_panel, text_var = "mins_std", macro_var = "GB_update_abs_std")
-corr_err <- create_corr_df(total_panel, text_var = "mins_std", macro_var = "GB_now_error_abs_std")
+corr_err <- create_corr_df(total_panel, text_var = "mins_std", macro_var = "GB_SPF_error_diff_std")
 corr_mat <- rbind(corr_disp, corr_up, corr_err)
 if (FALSE){
   stargazer(as.matrix(corr_mat), table.placement = "H", column.sep.width = "0pt", 
@@ -625,9 +658,9 @@ mean(diag(corr_pvals), na.rm = T)
 mean(odiag(corr_pvals), na.rm = T)
 
 # GB_error
-corr_est <- create_corr_df(total_panel, "mins_std", "GB_now_error_abs_std", siglevel = F)
+corr_est <- create_corr_df(total_panel, "mins_std", "GB_SPF_error_diff_std", siglevel = F)
 corr_est <- as.matrix(corr_est[,2:ncol(corr_est)])
-corr_pvals <- create_corr_df(total_panel, "mins_std", "GB_now_error_abs_std", siglevel = F, pval = T)
+corr_pvals <- create_corr_df(total_panel, "mins_std", "GB_SPF_error_diff_std", siglevel = F, pval = T)
 corr_pvals <- as.matrix(corr_pvals[,2:ncol(corr_pvals)])
 mean(diag(corr_est), na.rm = T)
 mean(odiag(corr_est), na.rm = T)
@@ -715,16 +748,16 @@ ggsave("figures/fed_media_topics/topic_comp.pdf", width = 6, height = 3)
 
 
 
-print_tab <- comp_K_df[,c("K", "not_matched", "disp", "GB_update", "GB_error")]
+print_tab <- comp_K_df[,c("K", "not_matched", "disp", "GB_update", "GB_SPF_errdiff")]
 names(comp_K_df_speech)[3:ncol(comp_K_df_speech)] <- 
   paste0(names(comp_K_df_speech)[3:ncol(comp_K_df_speech)], "_speech")
 print_tab <- merge(print_tab, by = "K", 
-                   comp_K_df_speech[,c("K", "disp_speech", "GB_update_speech", "GB_error_speech")])
+                   comp_K_df_speech[,c("K", "disp_speech", "GB_update_speech", "GB_SPF_errdiff_speech")])
 names(comp_K_df_speech) <- names(comp_K_df)
 names(comp_K_df_news)[3:ncol(comp_K_df_news)] <- 
   paste0(names(comp_K_df_news)[3:ncol(comp_K_df_news)], "_news")
 print_tab <- merge(print_tab, by = "K", 
-                   comp_K_df_news[,c("K", "disp_news", "GB_update_news", "GB_error_news")])
+                   comp_K_df_news[,c("K", "disp_news", "GB_update_news", "GB_SPF_errdiff_news")])
 names(comp_K_df_news) <- names(comp_K_df)
 
 
@@ -739,7 +772,7 @@ comp_K_df_news$corpus <- "NYT articles"
 comp_K_df_all <- rbind(comp_K_df, comp_K_df_speech, comp_K_df_news)
 
 comp_K_df_all <- comp_K_df_all[,c("K", "corpus", "disp_coef", "disp_se", 
-                                  "GB_up_coef", "GB_up_se","GB_err_coef", "GB_err_se")]
+                                  "GB_up_coef", "GB_up_se","GB_SPF_errdiff_coef", "GB_SPF_errdiff_se")]
 comp_K_df_all<- merge(comp_K_df_all, comp_K_df[,c("K","not_matched")], by = "K")
 comp_K_df_all$not_matched[which(comp_K_df_all$not_matched!="")] <- "some"#"some"
 comp_K_df_all$not_matched[which(comp_K_df_all$not_matched=="")] <- "some"
@@ -774,15 +807,17 @@ ggsave("figures/fed_media_topics/GB_up_coefs.pdf", width = 4, height = 6)
 ggplot(comp_K_df_all, aes(y = K)) + theme_bw() + 
   scale_shape_manual(guide="none",values = c("some" = 19, "none" = 8)) + 
   geom_vline(aes(xintercept = 0), linetype = "dashed") + 
-  geom_ribbon(aes(xmin = GB_err_coef-1.282*abs(GB_err_se), xmax = GB_err_coef+1.282*abs(GB_err_se)), 
+  geom_ribbon(aes(xmin = GB_SPF_errdiff_coef-1.282*abs(GB_SPF_errdiff_se), 
+                  xmax = GB_SPF_errdiff_coef+1.282*abs(GB_SPF_errdiff_se)), 
               alpha = 0.5) + 
-  geom_ribbon(aes(xmin = GB_err_coef-1.96*abs(GB_err_se), xmax = GB_err_coef+1.96*abs(GB_err_se)), 
+  geom_ribbon(aes(xmin = GB_SPF_errdiff_coef-1.96*abs(GB_SPF_errdiff_se), 
+                  xmax = GB_SPF_errdiff_coef+1.96*abs(GB_SPF_errdiff_se)), 
               alpha = 0.2) + 
-  geom_point(aes(x = GB_err_coef, shape = not_matched)) + 
+  geom_point(aes(x = GB_SPF_errdiff_coef, shape = not_matched)) + 
   scale_x_continuous(breaks = c(-0.1,0,0.1)) + 
   facet_wrap(corpus~., nrow = 1) + 
-  xlab("Coefficient on Tealbook error")
-ggsave("figures/fed_media_topics/GB_err_coefs.pdf", width = 4, height = 6)
+  xlab("Coefficient on Tealbook-SPF error difference")
+ggsave("figures/fed_media_topics/SPFGB_errdiff_coefs.pdf", width = 4, height = 6)
 
 
 
