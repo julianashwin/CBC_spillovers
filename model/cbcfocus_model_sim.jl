@@ -326,7 +326,10 @@ savefig("model_figs/attention_nu.pdf")
 
 ## σ_ζ1
 σ_ζ1_df = sensitivity_analysis(:σ_ζ1, 0.0:0.1:3.0, nruns = 50000)
-σ_ζ1_meds = combine(groupby(σ_ζ1_df,:σ_ζ1),:a1=>median=>:a1)
+σ_ζ1_meds = combine(groupby(σ_ζ1_df,:σ_ζ1),:a1=>median=>:a1_med,
+    :q1=>var=>:q1_var, :ζ1=>var=>:ζ1_var, :λq1=>median=>:λq1_med)
+
+σ_ζ1_df.λq1
 
 plt_ζ1 = histogram2d(σ_ζ1_df.σ_ζ1, σ_ζ1_df.a1,  nbins=(0.0:0.1:3,0:0.025:1),
     weights = repeat([1/nrow(σ_ζ1_df)],nrow(σ_ζ1_df)),

@@ -323,6 +323,140 @@ ggsave("figures/IRFs/GB_up/fomc_fomc.pdf", width = 4, height = 3)
 
 
 
+############################# GB nowcast gap ############################# 
+
+
+individuals <- unique(total.df$variable)
+ndraws <- 5000
+n_ahead <- 12
+nlags <- 3
+## Store results
+oirf_draws <- data.frame(draw = 1:ndraws)
+# Dispersion shock
+oirf_draws[,c(paste0("disp_on_disp_", 1:n_ahead),paste0("disp_on_news_", 1:n_ahead),
+              paste0("disp_on_fed_", 1:n_ahead))] <- 0
+# News shock
+oirf_draws[,c(paste0("news_on_disp_", 1:n_ahead),paste0("news_on_news_", 1:n_ahead),
+              paste0("news_on_fed_", 1:n_ahead))] <- 0
+# FOMC shock
+oirf_draws[,c(paste0("fed_on_disp_", 1:n_ahead),paste0("fed_on_news_", 1:n_ahead),
+              paste0("fed_on_fed_", 1:n_ahead))] <- 0
+girf_draws <- oirf_draws
+
+pb = txtProgressBar(min = 1, max = ndraws, initial = 1) 
+for (nn in 1:ndraws){
+  setTxtProgressBar(pb,nn)
+  # Blockwise sample individuals
+  sub_inds <- sample(individuals, length(individuals), replace = TRUE)
+  sub.df <- total.df[which(total.df$variable == sub_inds[1]),]
+  for (si in sub_inds[2:length(sub_inds)]){
+    sub.df <- rbind(sub.df, total.df[which(total.df$variable == si),])
+  }
+  sub.df$disp_std <- sub.df$GB_SPF_now_gap_abs_std
+  # Estimate VAR by OLS
+  var_sub <- pvarfeols(
+    dependent_vars = c("disp_std","news_std","mins_std"),
+    lags = nlags,
+    #exog_vars,
+    transformation = c("fod"),
+    data = sub.df,
+    panel_identifier = c("variable", "period")
+  )
+  # Compute IRFs
+  varsub_oirf <- oirf(var_sub, n.ahead = n_ahead)
+  varsub_girf <- girf(var_sub, n.ahead = n_ahead, ma_approx_steps = n_ahead)
+  
+  # Save OIRF results for disp shock
+  oirf_draws[nn,paste0("disp_on_disp_", 1:n_ahead)] <- varsub_oirf$disp_std[,"disp_std"]
+  oirf_draws[nn,paste0("disp_on_news_", 1:n_ahead)] <- varsub_oirf$disp_std[,"news_std"]
+  oirf_draws[nn,paste0("disp_on_fed_", 1:n_ahead)] <- varsub_oirf$disp_std[,"mins_std"]
+  # Save OIRF results for news shock
+  oirf_draws[nn,paste0("news_on_disp_", 1:n_ahead)] <- varsub_oirf$news_std[,"disp_std"]
+  oirf_draws[nn,paste0("news_on_news_", 1:n_ahead)] <- varsub_oirf$news_std[,"news_std"]
+  oirf_draws[nn,paste0("news_on_fed_", 1:n_ahead)] <- varsub_oirf$news_std[,"mins_std"]
+  # Save OIRF results for fed shock
+  oirf_draws[nn,paste0("fed_on_disp_", 1:n_ahead)] <- varsub_oirf$mins_std[,"disp_std"]
+  oirf_draws[nn,paste0("fed_on_news_", 1:n_ahead)] <- varsub_oirf$mins_std[,"news_std"]
+  oirf_draws[nn,paste0("fed_on_fed_", 1:n_ahead)] <- varsub_oirf$mins_std[,"mins_std"]
+  
+  # Save GIRF results for disp shock
+  girf_draws[nn,paste0("disp_on_disp_", 1:n_ahead)] <- varsub_girf$disp_std[,"disp_std"]
+  girf_draws[nn,paste0("disp_on_news_", 1:n_ahead)] <- varsub_girf$disp_std[,"news_std"]
+  girf_draws[nn,paste0("disp_on_fed_", 1:n_ahead)] <- varsub_girf$disp_std[,"mins_std"]
+  # Save OIRF results for news shock
+  girf_draws[nn,paste0("news_on_disp_", 1:n_ahead)] <- varsub_girf$news_std[,"disp_std"]
+  girf_draws[nn,paste0("news_on_news_", 1:n_ahead)] <- varsub_girf$news_std[,"news_std"]
+  girf_draws[nn,paste0("news_on_fed_", 1:n_ahead)] <- varsub_girf$news_std[,"mins_std"]
+  # Save OIRF results for fed shock
+  girf_draws[nn,paste0("fed_on_disp_", 1:n_ahead)] <- varsub_girf$mins_std[,"disp_std"]
+  girf_draws[nn,paste0("fed_on_news_", 1:n_ahead)] <- varsub_girf$mins_std[,"news_std"]
+  girf_draws[nn,paste0("fed_on_fed_", 1:n_ahead)] <- varsub_girf$mins_std[,"mins_std"]
+  
+}
+beep()
+### Plot IRFs with bootstrapped CIs
+varobj <- varone_oirf 
+btstrpobj <- oirf_draws
+name <- "disp_on_fed_"
+create_btsrp_df <- function(n_ahead,btstrpobj,name){
+  btstrp_df <- data.frame(period = 0:(n_ahead-1))
+  btstrp_df[,c("quant_0p025", "quant_0p975", "quant_0p5", "quant_0p15", "quant_0p85")] <- 0
+  for (ll in 1:n_ahead){
+    btstrp_dist <- btstrpobj[,paste0(name, ll)]
+    btstrp_df$quant_0p025[ll] <- quantile(btstrp_dist, probs = c(0.025))
+    btstrp_df$quant_0p975[ll] <- quantile(btstrp_dist, probs = c(0.975))
+    btstrp_df$quant_0p15[ll] <- quantile(btstrp_dist, probs = c(0.15))
+    btstrp_df$quant_0p85[ll] <- quantile(btstrp_dist, probs = c(0.85))
+    btstrp_df$quant_0p5[ll] <- quantile(btstrp_dist, probs = c(0.5))
+  }
+  return(btstrp_df)
+}
+
+plt_btstrp <- function(btstrp_df){
+  p1 <- ggplot(btstrp_df,aes(x=period)) + geom_line(aes(y=quant_0p5)) + theme_bw() +
+    xlab("Periods") + ylab("Response") + geom_hline(yintercept = 0, linetype = 2) + 
+    geom_ribbon(aes(ymin = quant_0p025, ymax = quant_0p975), fill= "black", alpha = 0.2) +
+    geom_ribbon(aes(ymin = quant_0p15, ymax = quant_0p85), fill = "black", alpha = 0.4) +
+    scale_x_continuous(breaks= pretty_breaks())
+  return(p1)
+}
+
+#### Plot and save all the OIRFs
+# Dispersion
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"disp_on_disp_")
+plt_btstrp(btstrp_df) + ggtitle("SPF-Fed gap on SPF-Fed gap")
+ggsave("figures/IRFs/SPFGBgap/SPFGBgap_SPFGBgap.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"disp_on_news_")
+plt_btstrp(btstrp_df) + ggtitle("SPF-Fed gap on NYT focus")
+ggsave("figures/IRFs/SPFGBgap/SPFGBgap_nyt.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"disp_on_fed_")
+plt_btstrp(btstrp_df) + ggtitle("SPF-Fed gap on FOMC minutes focus")
+ggsave("figures/IRFs/SPFGBgap/SPFGBgap_fomc.pdf", width = 4, height = 3)
+# News
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"news_on_disp_")
+plt_btstrp(btstrp_df) + ggtitle("NYT focus on SPF-Fed gap")
+ggsave("figures/IRFs/SPFGBgap/nyt_SPFGBgap.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"news_on_news_")
+plt_btstrp(btstrp_df) + ggtitle("NYT focus on NYT focus")
+ggsave("figures/IRFs/SPFGBgap/nyt_nyt.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"news_on_fed_")
+plt_btstrp(btstrp_df) + ggtitle("NYT focus on FOMC minutes focus")
+ggsave("figures/IRFs/SPFGBgap/nyt_fomc.pdf", width = 4, height = 3)
+# Fed
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"fed_on_disp_")
+plt_btstrp(btstrp_df) + ggtitle("FOMC minutes focus on SPF-Fed gap")
+ggsave("figures/IRFs/SPFGBgap/fomc_SPFGBgap.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"fed_on_news_")
+plt_btstrp(btstrp_df) + ggtitle("FOMC minutes focus on NYT focus")
+ggsave("figures/IRFs/SPFGBgap/fomc_nyt.pdf", width = 4, height = 3)
+btstrp_df <- create_btsrp_df(n_ahead,oirf_draws,"fed_on_fed_")
+plt_btstrp(btstrp_df) + ggtitle("FOMC minutes focus on FOMC minutes focus")
+ggsave("figures/IRFs/SPFGBgap/fomc_fomc.pdf", width = 4, height = 3)
+
+
+
+
+
 
 
 

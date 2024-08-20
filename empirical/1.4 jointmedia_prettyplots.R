@@ -5,11 +5,16 @@
 setwd("~/Documents/GitHub/CBC_spillovers")
 rm(list = ls())
 
-require(stringr)
-require(ggplot2)
-require(ggwordcloud)
-require(lfe)
-require(plm)
+library(stringr)
+library(ggplot2)
+library(ggwordcloud)
+library(lfe)
+library(plm)
+library(fixest)
+library(tidyverse)
+library(Hmisc)
+library(reshape2)
+library(stargazer)
 
 standardise <- function(x){
   x <- (x - mean(x, na.rm = TRUE))/sd(x, na.rm = TRUE)
@@ -28,6 +33,42 @@ felm_DK_se <- function(reg_formula, df_panel){
   model_felm$tval <- summary(model, vcov = DK ~ period)$coeftable[,"t value"]
   model_felm$pval <- summary(model, vcov = DK ~ period)$coeftable[,"Pr(>|t|)"]
   return(model_felm)
+}
+
+
+cor_mat_plot <- function(df, qual_vars){
+  # Create correlation matrix
+  cormat_hh <- rcorr(as.matrix(df[,qual_vars]))
+  # Coefs
+  cormat_hh_coef <- cormat_hh$r
+  cormat_hh_coef[upper.tri(cormat_hh_coef)] <- NA
+  diag(cormat_hh_coef) <- NA
+  cormat_hh_coef <- tibble(melt(cormat_hh_coef, na.rm = T, value.name = "coef")) %>%
+    filter(Var1 %in% qual_vars & Var2 %in% qual_vars) %>%
+    mutate(coef = round(coef,2))
+  # P-values
+  cormat_hh_pval <- cormat_hh$P
+  cormat_hh_pval[upper.tri(cormat_hh_pval)] <- NA
+  diag(cormat_hh_pval) <- NA
+  cormat_hh_pval <- tibble(melt(cormat_hh_pval, na.rm = T, value.name = "pval")) %>%
+    filter(Var1 %in% qual_vars & Var2 %in% qual_vars) %>%
+    mutate(alpha = case_when(pval < 0.1 ~ "sig", TRUE ~ "not")) %>%
+    mutate(stars = case_when(pval < 0.01 ~ "***", pval < 0.05 ~ "**", pval < 0.1 ~ "*", TRUE ~ ""))
+  # Merge back 
+  cormat_hh <- left_join(cormat_hh_coef, cormat_hh_pval, by = c("Var1", "Var2"))
+  # Plot matrix
+  corplot_hh <- ggplot(cormat_hh, aes(x = (Var2), y = fct_rev(Var1), fill = coef)) + theme_minimal() + 
+    geom_tile(color = "white") + 
+    scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                         midpoint = 0, limit = c(-1,1), space = "Lab") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.3, hjust=1)) + 
+    labs(x = "", y = "", fill = "Correlation") + 
+    geom_text(aes(label = str_c(signif(coef,3),stars), alpha = alpha), color = "black", size = 2.3) + 
+    scale_alpha_manual(values = c("sig" = 1, "not" = 0.5), guide = 'none') +
+    ggtitle("")
+  
+  return(corplot_hh)
+  
 }
 
 
@@ -77,20 +118,93 @@ spf_gb_df$quarter <- as.Date(spf_gb_df$quarter)
 spf_gb_df <- pivot_wider(spf_gb_df, id_cols = c(quarter), names_from = variable, 
                             names_glue = "{variable}_{.value}",
                             values_from = c(variable_act, dispersion, GB_update_abs_std,
-                                            GB_now_error_abs))
+                                            GB_now_error_abs, GB_SPF_now_gap_abs_std))
 qly_series_df <- merge(qly_series_df[,which(!str_detect(names(qly_series_df), "disper"))], 
                        spf_gb_df, by = "quarter")
 qly_series_df$quarter <- as.Date(qly_series_df$quarter)
 
 variables <- as.character(unique(panel_df$variable))
+variables_gb <- as.character(unique(filter(panel_df, !is.na(GB_update_abs_std))$variable))
 
 "
 Check correlations
 "
+
+
+# Are errors correlated across variables?
+# Residualise errors against a time fixed effect
+resids_df <- panel_df[which(!is.na(panel_df$GB_update_abs_std)),]
+model <- feols(GB_update_abs_std ~ 0 | variable + period, resids_df)
+resids_df$GB_update_abs_resids <- model$residuals
+update_df <- resids_df %>%
+  pivot_wider(id_cols = quarter, names_from = variable, values_from = GB_update_abs_resids)
+
+cor_mat_plot(update_df, variables_gb)
+
+
+x <- mutate(panel_df, variable = "Overall")
+cor.test(x$mins_std, x$GB_update_abs_std)
+
+# Estimates
+est_df <- panel_df %>%
+  mutate(GB_update_abs_std = replace_na(GB_update_abs_std,0),
+         GB_SPF_error_diff_std = replace_na(GB_SPF_error_diff_std,0),
+         GB_SPF_now_gap_abs_std = replace_na(GB_SPF_now_gap_abs_std,0)) %>%
+  rbind(mutate(panel_df, variable = "Overall")) %>%
+  pivot_longer(cols = c(mins_std, speeches_std, news_std), names_to = "text", values_to = "focus") %>%
+  mutate(text = case_when(str_detect(text, "mins") ~ "FOMC Minutes", str_detect(text, "speech") ~ "FOMC Speeches",
+                          str_detect(text, "news") ~ "NYT articles")) %>%
+  group_by(variable, text) %>%
+  summarise(`disp` = cor.test(focus, disp_std, na.rm = T)$estimate,
+            `s` = case_when(any(!is.na(GB_nowcast)) ~ cor.test(focus, GB_update_abs_std, na.rm = T)$estimate, TRUE ~ NA_real_),
+            `nu` = case_when(any(!is.na(GB_nowcast)) ~ cor.test(focus, GB_SPF_error_diff_std, na.rm = T)$estimate, TRUE ~ NA_real_),
+            `varepsilon` = case_when(any(!is.na(GB_nowcast)) ~ cor.test(focus, GB_SPF_now_gap_abs_std, na.rm = T)$estimate, TRUE ~ NA_real_)) %>%
+  pivot_longer(cols = c(-variable, -text), values_to = "coef", names_to = "correlation")
+# p-vals
+pval_df <- panel_df %>%
+  mutate(GB_update_abs_std = replace_na(GB_update_abs_std,0),
+         GB_SPF_error_diff_std = replace_na(GB_SPF_error_diff_std,0),
+         GB_SPF_now_gap_abs_std = replace_na(GB_SPF_now_gap_abs_std,0)) %>%
+  rbind(mutate(panel_df, variable = "Overall")) %>%
+  pivot_longer(cols = c(mins_std, speeches_std, news_std), names_to = "text", values_to = "focus") %>%
+  mutate(text = case_when(str_detect(text, "mins") ~ "FOMC Minutes", str_detect(text, "speech") ~ "FOMC Speeches",
+                          str_detect(text, "news") ~ "NYT articles")) %>%
+  group_by(variable, text) %>%
+  summarise(`disp` = cor.test(focus, disp_std, na.rm = T)$p.value,
+            `s` = case_when(any(!is.na(GB_nowcast)) ~ cor.test(focus, GB_update_abs_std, na.rm = T)$p.value, TRUE ~ NA_real_),
+            `nu` = case_when(any(!is.na(GB_nowcast)) ~ cor.test(focus, GB_SPF_error_diff_std, na.rm = T)$p.value, TRUE ~ NA_real_),
+            `varepsilon` = case_when(any(!is.na(GB_nowcast)) ~ cor.test(focus, GB_SPF_now_gap_abs_std, na.rm = T)$p.value, TRUE ~ NA_real_)) %>%
+  pivot_longer(cols = c(-variable, -text), values_to = "pval", names_to = "correlation")
+# Create correlation matrix
+cormat_df <- left_join(est_df, pval_df, by = c("variable", "text", "correlation")) %>%
+  mutate(variable = factor(variable, levels = c(variables, "Overall"), ordered = T)) %>%
+  mutate(correlation = factor(correlation, levels = c("disp", "s", "varepsilon", "nu"), ordered = T))
+# Plot matrix
+cormat_df %>%
+  filter(!is.na(coef)) %>%
+  mutate(alpha = case_when(pval < 0.1 ~ "sig", TRUE ~ "not")) %>%
+  mutate(stars = case_when(pval < 0.01 ~ "***", pval < 0.05 ~ "**", pval < 0.1 ~ "*", TRUE ~ "")) %>%
+  ggplot(aes(x = correlation, y = fct_rev(variable), fill = coef)) + theme_minimal() + 
+  facet_wrap(~text) +
+  scale_x_discrete(labels=c(expression(disp[kt]^SPF), 
+                            expression(paste("|",s[kt],"|")), 
+                            expression(paste("|",s[kt]-q[kt],"|")), 
+                            expression(paste("|",sigma^CB-sigma^PS,"|")))) +
+  geom_tile(color = "white") + 
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab") +
+  #theme(axis.text.x = element_text(angle = 90, vjust = 0.3, hjust=1)) + 
+  labs(x = "", y = "", fill = "Correlation") + 
+  geom_text(aes(label = str_c(signif(coef,3),stars), alpha = alpha), color = "black", size = 2.3) + 
+  scale_alpha_manual(values = c("sig" = 1, "not" = 0.5), guide = 'none')
+ggsave(paste0("figures/fed_media_topics/correlations.pdf"), width = 9, height = 4)
+
+
+
 series_df <- panel_df[which(panel_df$variable == "NGDP"),]
-cor.test(series_df$mins_std, series_df$GB_update_abs_std)
+cor.test(series_df$mins_std, series_df$GB_SPF_now_gap_abs_std)
 
-
+cor.test(panel_df$mins_std, panel_df$GB_SPF_now_gap_abs_std)
 
 "
 Manually do all the word clouds like a loser (need to adjust size so that all the words fit)
@@ -324,13 +438,18 @@ ggsave(paste0("figures/fed_media_topics/series/euro_series.pdf"), width = 8, hei
 
 
 
+cor.test(panel_df$disp_std, panel_df$GB_now_error_abs_std)
 
 
 
+panel_df <- panel_df %>%
+  group_by(variable) %>%
+  mutate(disp_1lag = lag(disp_std, order_by = quarter), 
+         disp_1lead = lead(disp_std, order_by = quarter))
 
 
 
-
+panel_df$disp_1lag
 
 "
 Regression tables
@@ -342,13 +461,12 @@ Regression tables
 # To test for autocorrelation in residuals
 model <- model2
 summary(lm(model$residuals[-length(model$residuals)] ~ model$residuals[-1]) )
-
 # Mins just topic FE
 reg_formula <- formula(mins_std ~ disp_std |variable)
 model1 <- felm_DK_se(reg_formula, panel_df)
 summary(model1)
 # Mins period FE and lags
-reg_formula <- formula(mins_std ~ disp_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+reg_formula <- formula(mins_std ~  disp_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
 model2 <- felm_DK_se(reg_formula, panel_df)
 summary(model2)
 # Speeches just topic FE
@@ -405,6 +523,10 @@ stargazer(model1, model2, model3, model4, model5, model6,
           label = "tab:topic_gb_update_results")
 
 
+panel_df$GB_SPF_error_ratio <- log(1+panel_df$GB_now_error_abs) - log(1+panel_df$SPF_now_error_abs)
+panel_df <- panel_df %>%
+  group_by(variable) %>%
+  mutate(GB_SPF_error_ratio_std =standardise(GB_SPF_error_ratio))
 
 ####### Error diff ####### 
 # Mins just topic FE
@@ -438,23 +560,56 @@ stargazer(model1, model2, model3, model4, model5, model6,
           label = "tab:topic_gb_error_results")
 
 
+
+####### GB-SPF gap update ####### 
+# Mins just topic FE
+reg_formula <- formula(mins_std ~ GB_SPF_now_gap_abs_std |variable)
+model1 <- felm_DK_se(reg_formula, panel_df)
+summary(model1)
+# Mins period FE and lags
+reg_formula <- formula(mins_std ~ GB_SPF_now_gap_abs_std + mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
+model2 <- felm_DK_se(reg_formula, panel_df)
+summary(model2)
+# Speeches just topic FE
+reg_formula <- formula(speeches_std ~ GB_SPF_now_gap_abs_std |variable)
+model3 <- felm_DK_se(reg_formula, panel_df)
+summary(model3)
+# Speeches period FE and lags
+reg_formula <- formula(speeches_std ~ GB_SPF_now_gap_abs_std + speeches_std_1lag+speeches_std_2lag+speeches_std_3lag|variable + period)
+model4 <- felm_DK_se(reg_formula, panel_df)
+summary(model4)
+# News just topic FE
+reg_formula <- formula(news_std ~ GB_SPF_now_gap_abs_std |variable)
+model5 <- felm_DK_se(reg_formula, panel_df)
+summary(model5)
+# News period FE and lags
+reg_formula <- formula(news_std ~ GB_SPF_now_gap_abs_std + news_std_1lag+news_std_2lag+news_std_3lag|variable + period)
+model6 <- felm_DK_se(reg_formula, panel_df)
+summary(model6)
+
+stargazer(model1, model2, model3, model4, model5, model6,
+          table.placement = "H", df = FALSE,
+          title = "Focus and Tealbook nowcast gap",
+          label = "tab:topic_spf_gb_now_gap_results")
+
+
 ### Including all three
-summary(lm(mins_std ~ disp_std + GB_update_abs_std + GB_SPF_error_diff_std, panel_df))
-reg_formula <- formula(mins_std ~ disp_std + GB_update_abs_std + GB_SPF_error_diff_std
+summary(lm(mins_std ~ disp_std + GB_update_abs_std + GB_SPF_error_diff_std + GB_SPF_now_gap_abs_std, panel_df))
+reg_formula <- formula(mins_std ~ disp_std + GB_update_abs_std + GB_SPF_error_diff_std + GB_SPF_now_gap_abs_std
                          |variable)
 model1 <- felm_DK_se(reg_formula, panel_df)
 summary(model1)
-reg_formula <- formula(mins_std ~ disp_std + GB_update_abs_std + GB_SPF_error_diff_std + 
+reg_formula <- formula(mins_std ~ disp_std + GB_update_abs_std + GB_SPF_error_diff_std + GB_SPF_now_gap_abs_std+ 
                          mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
 model2 <- felm_DK_se(reg_formula, panel_df)
 summary(model2)
-reg_formula <- formula(mins_std ~ disp_std + GB_update_abs_std + GB_SPF_error_diff_std + news_std + 
+reg_formula <- formula(mins_std ~ disp_std + GB_update_abs_std + GB_SPF_error_diff_std  + GB_SPF_now_gap_abs_std + news_std + 
                          mins_std_1lag+mins_std_2lag+mins_std_3lag|variable + period)
 model3 <- felm_DK_se(reg_formula, panel_df)
 summary(model3)
 stargazer(model1, model2, model3, table.placement = "H", df = FALSE,
-          title = "Focus and three uncertainty measures",
-          label = "tab:topic_three_results")
+          title = "Focus and four uncertainty measures",
+          label = "tab:topic_four_results")
 
 
 
